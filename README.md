@@ -1,3 +1,5 @@
 # R-Projects
 
-This is the storage of R projects I did for myself. Most of the datasets are gathered from courses I took at the University of Iceland. Please no use for the sake of your benefits. 
+This is the storage of R projects I did for myself. </br>
+Most of the datasets are gathered from the courses I took at the University of Iceland. </br>
+Please no use for the sake of your (commercial) benefits. 
