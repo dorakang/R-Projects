@@ -1,0 +1,479 @@
+---
+title: "OECD Gender Inequality Data Analysis"
+output: github_document
+author: Sungkyung Kang 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, error = F)
+setwd("~/Documents/Document/Study/github")
+library(knitr)
+library(tidyverse)
+library(kableExtra)
+```
+
+# I. Introduction
+&nbsp;&nbsp;&nbsp; The project is to explore inequality based on the Organisation for Economic Cooperation and Development (OECD) datasets. The issues regarding inequality have been problematic in a global society. It has not come up as single and simple social issues, but complicated and differentiated social, political and cultural discourses. The three datasets used in the project are retrieved from OECD (https://data.oecd.org). 
+</br>
+
+#### i. Datasets from OECD
+The datasets selected from OECD data archives are below: </br>
+
+* Gender Wage Gap (https://data.oecd.org/earnwage/gender-wage-gap.htm)
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+genWag <- read_csv("OECD_genderwagegap.csv") 
+glimpse(genWag)
+```
+The data includes the wage gap which is calculated as median earning by gender in 44 countries including the total OECD countries' average then the measurement is recorded as full-time employment and self-employment cases from 1970 to 2019. </br></br>
+
+```{r fig1}
+ggplot(genWag,aes(x=TIME,y=Value,group=LOCATION,color=LOCATION))+
+  geom_line()+
+  facet_grid(.~SUBJECT)+
+  ylab("Gender wage gap")+
+  xlab("Year")+
+  labs(color='Countries')
+```
+</br></br>
+The graph shows relationships between the gender wage gap and employment types from 44 countries from 1970 to 2019. Due to too many countries on the legend, it is hard to figure out the graph at a glance. From the graph, self-employment has been active in the 2000s. </br></br>
+
+* Employee Compensation by Activity (https://data.oecd.org/earnwage/employee-compensation-by-activity.htm)
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+empCom <- read_csv("OECD_EmployeeCompensationByActivity.csv")
+glimpse(empCom)
+```
+The data, which shows compensation of employees as gross wages and salaries payable in cash, is measured from percentages of gross value added. With 44 countries including European Union (EU) and Euro Area (EA), the measurement is classified as agriculture (e.g., forestry and fishing), industry, services and total value recorded from 1970 to 2019. </br></br>
+
+```{r fig2, fig.height=10, fig.width=15, fig.align="center",echo=FALSE}
+ggplot(empCom,aes(x=TIME,y=Value,group=LOCATION,color=LOCATION))+
+  geom_line()+
+  facet_grid(.~SUBJECT)+
+  ylab("Employee compensation")+
+  xlab("Year")+
+  labs(color='Countries')
+```
+</br></br>
+The graph shows relationships between the compensation of employees and employment fields from 44 countries from 1970 to 2019. Due to too many countries on the legend, it is hard to figure out the graph at a glance. From the graph, agriculture has the lowest employee compensation in the given time, but service has the highest employee compensation among three fields. </br></br>
+
+* Income Inequality (https://data.oecd.org/inequality/income-inequality.htm)
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+empInq <- read_csv("OECD_incomeInequality.csv")
+glimpse(empInq)
+```
+The data, which shows income inequality in 44 countries from 1976 to 2019, is measured as the Gini coefficient, which is based on the comparison of cumulative proportions of the population against cumulative proportions of income and is expressed from 1 (i.e., inequality) to 0 (i.e., equality), and five ratio types such as P50P10, P90P10, P90P50, PALMA, and S80S20. </br></br>
+
+```{r fig3, fig.height=10, fig.width=15,fig.align="center",echo=FALSE}
+ggplot(empInq,aes(x=TIME,y=Value,group=LOCATION,color=LOCATION))+
+  geom_line()+
+  facet_grid(.~SUBJECT)+
+  ylab("Income inequality")+
+  xlab("Year")+
+  labs(color='Countries')
+```
+</br></br>
+The graph shows relationships between income inequality measured as the Gini coefficient, P50P10, P90P10, P90P50, PALMA, and S80S20 from 1976 to 2019. Due to too many countries on the legend, it is hard to figure out the graph at a glance. Of six measurements, the Gini coefficient is, however, extracted below. </br></br>
+
+```{r fig4}
+ggplot(empInq %>% filter(SUBJECT=="GINI"),aes(x=TIME,y=Value,group=LOCATION,color=LOCATION))+
+  geom_line()+
+  ylab("Income inequality (Gini coefficient)")+
+  xlab("Year")+
+  labs(color='Countries')
+```
+</br></br>
+The graph only shows the trends of Gini coefficient from 44 countries. </br></br>
+
+```{r}
+empInq %>% filter(SUBJECT=="GINI", TIME=="1990") 
+```
+In 1990, only two countries (e.g., Canada, Finland) were recorded. The Gini coefficient in Finland (0.215) is lower than Canada's (0.289), but the Gini coefficients of the two countries are closer to 0 then they have equality on income. </br></br>
+
+#### ii. Post-processing dataset
+From the datasets mentioned above, the dataset is merged into a (new) dataset below: </br>
+
+```{r}
+genWag <- genWag %>% 
+  select(LOCATION,SUBJECT,TIME,Value) %>%
+  filter(SUBJECT=="EMPLOYEE")
+empCom <- empCom %>% 
+  select(LOCATION,SUBJECT,TIME,Value) %>%
+  filter(SUBJECT=="TOT")
+empInq <- empInq %>% 
+  select(LOCATION,SUBJECT,TIME,Value) %>%
+  filter(SUBJECT=="GINI")
+```
+The datasets are extracted to interesting cases: full-time employment (726 observations) from gender wage gap (initial total 1112 observations), total case (1702 observations) from employee compensation (initial total 5160 observations), and the Gini coefficient (430 observations) from income inequality (initial total 2580 observations).
+
+```{r}
+equ1 <- full_join(empCom,genWag)
+equ1 <- full_join(equ1,empInq)
+equ1_wide <- pivot_wider(equ1,names_from=SUBJECT,values_from=Value)
+```
+To merge three datasets, `full_join` is used. Since `left_join` is only taking total cases of employee compensation, all of the datasets are merged as `full_join` by retaining all values and rows (2858 observations). The merged dataset is transformed into a wider version (1779 observations). 
+</br></br>
+
+# II. Method
+&nbsp;&nbsp;&nbsp; The chapter shows how the data is analysed and visualised in the following steps. </br>
+```{r}
+glimpse(equ1_wide)
+```
+Since the dataset did `full_join`, there are lots of missing values in columns (SUBJECT) that come from three datasets. Before the merging process, each country has a different number of observations given time point/period. For example, country A has full records from the starting time point to the end of time. Country B, however, does not have full records and only has a part of it within the time point. After merging the datasets, the dataset has lots of missing values since the merging rule is to have all rows and observations from three datasets. For example, each dataset has a different number of observations. It can make statistical modelling less clear to get a significant result. In the dataset, 51 countries are included. For instance, France (FRA) has observations on the variable, TOT (i.e., total case of employee compensation), but has no observations on the variables, EMPLOYEE (i.e., gender wage gap for full-time employees) and GINI (i.e., the Gini coefficient) from 1970 to 1975. </br></br>
+
+#### i. Average measurements by countries
+The section shows averages of each measurement (total case of employee compensation, gender wage gap for full-time employees, the Gini coefficient) by countries. </br>
+```{r tab1}
+tab1 <- group_by(equ1_wide,LOCATION) %>%
+  summarize(Mean=mean(TOT,na.rm=T)) %>% 
+  arrange(desc(Mean))
+kable(tab1) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F,font_size=10)
+```
+
+The table shows the average employee compensation by countries. From the table, Denmark (DNK) is the greatest country of employee compensation. Turkey (TUR) is the lowest level of employee compensation. 
+
+```{r tab2}
+tab2 <- group_by(equ1_wide,LOCATION) %>%
+  summarize(Mean=mean(EMPLOYEE,na.rm=T)) %>% 
+  arrange(desc(Mean))
+kable(tab2) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F,font_size=10)
+```
+
+The table shows the average gender wage gap by countries. From the table, Korea (KOR) is the first country of the worst gender wage gap. Japan (JPN) is the following. 
+
+```{r tab3}
+tab3 <- group_by(equ1_wide,LOCATION) %>%
+  summarize(Mean=mean(GINI,na.rm=T)) %>% 
+  arrange(desc(Mean))
+kable(tab3) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F,font_size=10)
+```
+
+The table shows the average income inequality as the Gini coefficient by countries. From the table, South Africa (ZAF) has the highest Gini coefficient on average. Slovenia (SVN), however, has the lowest Gini coefficient. In general, nordic European countries have low levels of Gini coefficient (around 0.2). 
+</br>
+
+#### ii. Average measurements of countries in the given time
+```{r fig5}
+tab1 <- group_by(equ1_wide,TIME) %>%
+  summarize(Mean=mean(TOT,na.rm=T)) %>% 
+  arrange(desc(Mean))
+ggplot(tab1,aes(x=TIME,y=Mean))+
+  geom_line(color="deepskyblue4")+
+  geom_point(color="deeppink4")+
+  xlab("Year")+
+  ylab("Average employee compensation")
+```
+</br></br>
+In the graph, the trend seems to be decreasing from the late 1970s to 2018. It means that the employee compensation had been getting worse in the time points. I am not sure the extreme change in 2019 reflects reality and gives us hope to better employee compensation. I am going to have a look at that by a comparison below. 
+
+```{r tab4}
+tab1_1 <- equ1_wide %>% 
+  filter(TIME=="2019") %>% 
+  select(LOCATION,TOT)
+kable(tab1_1) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F,font_size=10)
+```
+
+```{r tab5}
+tab1_2 <- equ1_wide %>% 
+  filter(TIME=="2011") %>% 
+  select(LOCATION,TOT)
+kable(tab1_2) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F,font_size=10)
+```
+</br>
+From two tables in 2019 and 2011 above, most of the observations in 2019 came from European countries. The number of observations from countries in 2019 is smaller than in 2011. With such a non-balanced structure, employee compensation in 2019 can look much promising. </br></br>
+
+```{r fig6, warning=FALSE}
+tab2 <- group_by(equ1_wide,TIME) %>%
+  summarize(Mean=mean(EMPLOYEE,na.rm=T)) %>% 
+  arrange(desc(Mean))
+ggplot(tab2,aes(x=TIME,y=Mean))+
+  geom_line(color="royalblue3")+
+  geom_point(color="seagreen4")+
+  xlab("Year")+
+  ylab("Average gender wage gap (full-time employee)")
+```
+</br></br>
+In the graph, the trend looks decreasing from 1970 to 2018 although an outlier is found at 1985. It means that the gender wage gap had been improving in the time points. I am going to have a look at 1985.
+
+```{r tab6}
+tab2_1 <- equ1_wide %>% 
+  filter(TIME=="1985") %>% 
+  select(LOCATION,EMPLOYEE) %>% 
+  arrange(desc(EMPLOYEE))
+kable(tab2_1) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F,font_size=10)
+```
+</br>
+As the table is shown, there are lots of missing values except five countries in 1985. In 1985, Korea (KOR) had the most severe gender wage gap. Japan (JPN) is the following. For that reason, the point in 1985 in the graph above did not look right against the trend. 
+
+```{r fig7, warning=FALSE}
+tab3 <- group_by(equ1_wide,TIME) %>%
+  summarize(Mean=mean(GINI,na.rm=T)) %>% arrange(desc(Mean)) 
+ggplot(tab3,aes(x=TIME,y=Mean))+
+  geom_line(color="darkgoldenrod3")+
+  geom_point(color="darkorchid4")+
+  xlab("Year")+
+  ylab("Average Gini coefficient")
+```
+</br>
+From the graph, the trend looks increasing at a glance. It means that the Gini coefficient is getting higher then the inequality level is also higher within time points although the Gini coefficient is still less than 0.5. I, however, think I should have a look at some time points, 1987 and 2018 because there are extreme changes. It will be introduced below. 
+
+```{r tab7}
+tab3_1 <- equ1_wide %>%
+  filter(TIME=="1987") %>% 
+  select(LOCATION,GINI) %>% 
+  arrange(desc(GINI))
+kable(head(tab3_1)) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F,font_size=10)
+```
+</br>
+The table shows the average Gini coefficient values by countries in 1987. Due to many missing values, the table only shows 6 countries' values. In 1987, there are only observations of Canada (CAN) and Finland (FIN) as 0.291 and 0.209. It is quite close to 0 so the two countries have an equality level. 
+
+```{r tab8}
+tab3_2 <- equ1_wide %>%
+  filter(TIME=="2018") %>% 
+  select(LOCATION,GINI) %>% 
+  arrange(desc(GINI))
+kable(head(tab3_2)) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F,font_size=10)
+```
+</br>
+The table shows the average Gini coefficient values by countries in 2018. Due to many missing values, the table only shows 6 countries' values. In 2018, there are only observations of Costa Rica (CRI), Israel (ISR), and Australia (AUS) as 0.479, 0.348 and 0.325. 
+</br>
+In 2019, only Costa Rica (CRI) observation is recorded as 0.478.
+</br></br>
+The next part covers a case study from the datasets extracting Iceland, South Korea and the United Kingdom. From the merging dataset, filtering is done to do a case study then basic statistical analysis is carried out. Since each country dataset is independently gathered, filtered datasets by country can be unbalanced. </br></br>
+
+#### iii. Case study: Iceland
+```{r}
+equ1_ISL <- equ1_wide %>% filter(LOCATION=="ISL")
+glimpse(equ1_ISL)
+equ1_ISL1 <- equ1_ISL %>% filter(TIME>=2004 & TIME<=2016)
+glimpse(equ1_ISL1)
+```
+Of 47 time points, I choose the dataset recorded from 2004 to 2016 since there are only two missing values (EMPLOYEE in 2012 and GINI in 2016). </br></br>
+
+**Correlation analysis**
+```{r}
+shapiro.test(equ1_ISL1$TOT)
+shapiro.test(equ1_ISL1$EMPLOYEE)
+shapiro.test(equ1_ISL1$GINI)
+```
+To check the correlation between continuous (pair) variables, the normality test is suggested. Shapiro-Wilk's method is applied for. The variable, TOT (i.e., total case of employee compensation) is met to normality since the p-value is 0.4593 (>0.05). The variable, EMPLOYEE (i.e., the gender wage gap for full-time employees) is met to normality since the p-value is 0.817 (>0.05). The variable, GINI (i.e., the Gini coefficient) is met to normality since the p-value is 0.3222 (>0.05). </br>
+Since all of the variables are satisfied with normality, Pearson's r is used. 
+
+```{r}
+cor.test(equ1_ISL1$TOT,equ1_ISL1$EMPLOYEE,method="pearson")
+```
+The Pearson correlation coefficient between TOT and EMPLOYEE is 0.009980965 and they are not correlated since it is close to 0. 
+
+```{r}
+cor.test(equ1_ISL1$TOT,equ1_ISL1$GINI,method="pearson")
+```
+The Pearson correlation coefficient between TOT and GINI is 0.565523 and they are not highly correlated since it is the middle of 0 and 1. 
+
+```{r}
+cor.test(equ1_ISL1$EMPLOYEE,equ1_ISL1$GINI,method="pearson")
+```
+The Pearson correlation coefficient between EMPLOYEE and GINI is -0.07154818 and they are correlated but can be slightly negatively correlated. It is still close to 0. </br>
+Any variabes in the dataset are not clearly correlated.
+
+**Linear regression model**
+```{r}
+lm1 <- lm(TOT ~ TIME+EMPLOYEE+GINI,data=equ1_ISL1)
+summary(lm1)
+```
+The linear regression model is not significant (P>0.05). 
+
+```{r fig8, warning=FALSE, message=FALSE, error=FALSE}
+ggplot(equ1_ISL1,aes(x=TIME,y=TOT))+
+  geom_point(color="lightpink3")+
+  geom_smooth(method="lm")+
+  xlab("Year")+
+  ylab("Employee compensation")
+```
+</br></br>
+The graph shows a relationship between TIME and TOT with a 95% confidence interval.
+
+```{r fig9, warning=FALSE, message=FALSE, error=FALSE}
+ggplot(equ1_ISL1,aes(x=TIME,y=EMPLOYEE))+
+  geom_point(color="steelblue3")+
+  geom_smooth(method="lm")+
+  xlab("Year")+
+  ylab("Gender wage gap (full-time employees)")
+```
+</br></br>
+The graph shows a relationship between TIME and EMPLOYEE with a 95% confidence interval.
+
+```{r fig10, warning=FALSE, message=FALSE, error=FALSE}
+ggplot(equ1_ISL1,aes(x=TIME,y=GINI))+
+  geom_point(color="springgreen3")+
+  geom_smooth(method="lm")+
+  xlab("Year")+
+  ylab("Gini coefficient")
+```
+</br></br>
+The graph shows a relationship between TIME and GINI with a 95% confidence interval. </br></br>
+
+#### iv. Case study: South Korea
+```{r}
+equ1_KOR <- equ1_wide %>% filter(LOCATION=="KOR")
+glimpse(equ1_KOR)
+equ1_KOR1 <- equ1_KOR %>% filter(TIME>=1992 & TIME<=2014)
+glimpse(equ1_KOR1)
+```
+Of 49 time points, I choose the dataset recorded from 1992 to 2014 since there are no missing values in two variables, TOT and EMPLOYEE.</br>
+
+**Linear regression model**
+```{r}
+lm2 <- lm(TOT ~ TIME+EMPLOYEE,data=equ1_KOR1)
+summary(lm2)
+```
+The linear regression model is not significant (P>0.05). 
+
+```{r fig11, warning=FALSE, message=FALSE, error=FALSE}
+ggplot(equ1_KOR1,aes(x=TIME,y=TOT))+
+  geom_point(color="lightpink3")+
+  geom_smooth(method="lm")+
+  xlab("Year")+
+  ylab("Employee compensation")
+```
+</br></br>
+The graph shows a relationship between TIME and TOT with a 95% confidence interval. 
+
+```{r fig12, warning=FALSE, message=FALSE, error=FALSE}
+ggplot(equ1_KOR1,aes(x=TIME,y=EMPLOYEE))+
+  geom_point(color="steelblue3")+
+  geom_smooth(method="lm")+
+  xlab("Year")+
+  ylab("Gender wage gap (full-time employees)")
+```
+</br></br>
+The graph shows a relationship between TIME and EMPLOYEE with a 95% confidence interval. From 1992 to 2014 in South Korea, the gender wage gap had been improved. </br></br>
+
+#### v. Case study: The United Kingdom (UK)
+```{r}
+equ1_GBR <- equ1_wide %>% filter(LOCATION=="GBR")
+glimpse(equ1_GBR)
+equ1_GBR1 <- equ1_GBR %>% filter(TIME>=1970 & TIME<=2001)
+glimpse(equ1_GBR1)
+equ1_GBR2 <- equ1_GBR %>% filter(TIME>=2002 & TIME<=2017)
+glimpse(equ1_GBR2)
+```
+Of 50 time points, I choose the datasets recorded from 1970 to 2001 since there are two variables, TOT and EMPLOYEE and from 2002 to 2017 since there are three variables TOT, EMPLOYEE and GINI. </br></br>
+
+**Linear regression model**
+```{r}
+lm3 <- lm(TOT ~ TIME+EMPLOYEE,data=equ1_GBR1)
+summary(lm3)
+```
+From the dataset recorded from 1970 to 2001, the regression model is significant (P<0.05), but the adjusted R-squared is not big. 
+
+```{r}
+lm4 <- lm(TOT ~ TIME+EMPLOYEE+GINI,data=equ1_GBR2)
+summary(lm4)
+```
+From the dataset recorded from 2002 to 2017, the regression model is significant (P<0.05), but the adjusted R-squared is not big. Each predictor in the model is significant to the model. </br>
+$$TOT = 822.1931 - 0.3848*TIME -0.6439*EMPLOYEE + 53.6127*GINI$$
+When a unit on GINI is increasing, the model is increasing as 53.6127. 
+
+```{r fig13, warning=FALSE, message=FALSE, error=FALSE}
+ggplot(equ1_GBR1,aes(x=TIME,y=TOT))+
+  geom_point(color="lightpink3")+
+  geom_smooth(method="lm")+
+  xlab("Year")+
+  ylab("Employee compensation")
+```
+</br></br>
+The graph shows a relationship between TIME and TOT with a 95% confidence interval.
+
+```{r fig14, warning=FALSE, message=FALSE, error=FALSE}
+ggplot(equ1_GBR1,aes(x=TIME,y=EMPLOYEE))+
+  geom_point(color="steelblue3")+
+  geom_smooth(method="lm")+
+  xlab("Year")+
+  ylab("Gender wage gap (full-time employees)")
+```
+</br></br>
+The graph shows a relationship between TIME and EMPLOYEE with a 95% confidence interval.
+
+```{r fig15, warning=FALSE, message=FALSE, error=FALSE}
+ggplot(equ1_GBR2,aes(x=TIME,y=TOT))+
+  geom_point(color="lightpink3")+
+  geom_smooth(method="lm")+
+  xlab("Year")+
+  ylab("Employee compensation")
+```
+</br></br>
+The graph shows a relationship between TIME and TOT with a 95% confidence interval.
+
+```{r fig16, warning=FALSE, message=FALSE, error=FALSE}
+ggplot(equ1_GBR2,aes(x=TIME,y=EMPLOYEE))+
+  geom_point(color="steelblue3")+
+  geom_smooth(method="lm")+
+  xlab("Year")+
+  ylab("Gender wage gap (full-time employees)")
+```
+</br></br>
+The graph shows a relationship between TIME and EMPLOYEE with a 95% confidence interval.
+
+```{r fig17, warning=FALSE, message=FALSE, error=FALSE}
+ggplot(equ1_GBR2,aes(x=TIME,y=GINI))+
+  geom_point(color="springgreen3")+
+  geom_smooth(method="lm")+
+  xlab("Year")+
+  ylab("Gini coefficient")
+```
+</br></br>
+The graph shows a relationship between TIME and GINI with a 95% confidence interval.
+
+### vi. Case study: three countries (Iceland, South Korea and UK) from 2004 to 2016
+```{r}
+equ1_three <- equ1_wide %>% 
+  filter(LOCATION %in% c("GBR","ISL","KOR") & TIME>=2004 & TIME<=2016)
+glimpse(equ1_three)
+```
+Since each country dataset is gathered independently, the datasets are unbalanced. There is no longer period that has all of the variables and less missing values from each country's records although South Korea has lots of missing values on GINI. 
+</br></br>
+To check the normality, Kruskal-Wallis test is tried. 
+```{r}
+kruskal.test(TOT ~ LOCATION,data=equ1_three)
+kruskal.test(EMPLOYEE ~ LOCATION,data=equ1_three)
+kruskal.test(GINI ~ LOCATION,data=equ1_three)
+```
+All of the variables, TOT, EMPLOYEE and GINI are significant differences between three countries as the p-value is less than 0.05. 
+</br></br>
+To check the homogeneity of variance test, Bartlett's test is tried. The number of groups in the dataset is more than two and each variable to the group is met to normality. 
+```{r}
+bartlett.test(TOT ~ LOCATION,data=equ1_three)
+bartlett.test(EMPLOYEE ~ LOCATION,data=equ1_three) 
+bartlett.test(GINI ~ LOCATION,data=equ1_three)
+```
+From the tests (TOT by LOCATION and GINI by LOCATION), the p-value is less than 0.05 then these are not met to the homogeneity of variance. The test (EMPLOYEE by LOCATION) result shows the variable, EMPLOYEE to LOCATION is met to the homogeneity of variance. 
+</br>
+**Linear regression model**
+```{r}
+lm5 <- lm(TOT ~ LOCATION + TIME + GINI + EMPLOYEE, data=equ1_three)
+summary(lm5)
+```
+The linear regression model is significant (P<0.05). 
+
+```{r}
+lm6 <- lm(TOT ~ LOCATION + TIME + EMPLOYEE, data=equ1_three)
+summary(lm6)
+```
+The linear regression model is significant (P<0.05) then the adjusted R-squared is improved compared to the full model. 
+</br></br>
+
+# III. Results
+&nbsp;&nbsp;&nbsp; The datasets used in the project and analysis are to explore the inequality of social issues from the gender wage gap, employee compensation, and the Gini coefficient. The datasets are retrieved from OECD. The gender wage gap dataset is recorded from 1970 to 2019. The employee compensation dataset is recorded from 1970 to 2019. The Gini coefficient about the income inequality dataset is recorded from 1976 to 2019. Within the time points on the average, Denmark is on the greatest level of employee compensation, but Turkey is on the lowest level of employee compensation. Korea is the lowest level of equality on the gender wage gap and Japan is the following. South Africa is the highest Gini coefficient to measure income inequality. Nordic European countries have low levels of Gini coefficient. 
+</br></br>
+From the graph, employee compensation is on the decreasing trend then how countries have treated their full-time employees are getting worse from the late 1970s to 2018. The gender wage gap is on the increasing trend then how countries have regulated wages by gender and thought about women and men are improved from 1970 to 2018. The Gini coefficient is on the increasing trend. Income inequality is getting worse. Hence, the gender wage gap is improved, but income inequality and employee compensation are not improved. 
+</br></br>
+From the case study, the model from the UK dataset filtered between 1970 and 2001 is statistically significant and year, the gender wage gap and the Gini coefficient variables are explaining employee compensation as 30.91%. The model from the UK, South Korea and Iceland filtered between 2004 and 2016 is statistically significant and year, the gender wage gap and country groups are explaining employee compensation as 70.64%. Of the variables, year and the gender wage gap are significantly affecting employee compensation in the model. The detailed results are introduced in Chapter II. 
+</br></br>
+
+# IV. Conclusion
+&nbsp;&nbsp;&nbsp; The project is mainly tried to do exploratory data analysis (EDA) with visualisation processes and basic statistical analysis. The gender wage gap in OECD countries has been positively changed on the average, but income inequality and compensation approaches for full-time employees are not on the stage. Do we feel that kind of inequality social circumstances is changed in the right way? Although this result came from the datasets, we do not know how well the dataset reflects our society and reality. Inequality in labour market has been a big issue and we need to improve that based on the analysis and should acknowledge this is the initial step to reduce the inequality problems. 
