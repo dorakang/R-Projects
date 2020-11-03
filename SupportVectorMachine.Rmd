@@ -1,0 +1,422 @@
+---
+title: 'Support vector machines'
+author: "Sungkyung Kang"
+---
+
+####Option) Non-linear separation between two sets (training and test)
+```{r}
+library(e1071)
+set.seed(10)
+a<-rnorm(100,0,1)
+b<-rexp(100,1)+a^2
+train=sample(100,75)
+b.train=b[train]
+b.test=b[-train]
+a.train=a[train]
+a.test=a[-train]
+plot(a.train,b.train,xlab="a",ylab="b",col="green",main="Nonlinear SVC with two-class data set")
+points(a.test,b.test,xlab="a",ylab="b",col="purple")
+legend("bottomleft",legend=c("training","test"),col=c("green","purple"),pch=1)
+```
+<br>
+Green point is training set of two-class data set and purple point is test set of. 
+The shapes of training set and test set are nonlinear.
+
+####Training set) Support vector machine with polynomial
+```{r}
+set.seed(2)
+df<-data.frame(a,b)
+df[1:50,]=df[1:50,]+2
+df[51:100,]=df[51:100,]-2
+y=c(rep(-1,50),rep(1,50))
+df.y=data.frame(x=df,y=as.factor(y))
+plot(df,col=y+3,main="Two classes with non-linear shaped")
+```
+Make two classes with polynomial relation.
+
+```{r}
+train.df=sample(100,70) #70%
+svmfit.df=svm(y~.,data=df.y[train.df,],kernel="polynomial")
+plot(svmfit.df,df.y[train.df,])
+```
+<br>
+This is the support vecotor machine with polynomial kernel plot. (classification) 
+
+```{r}
+summary(svmfit.df)
+```
+The degree is 3 and gamma is 0.5. The -1 class has 6 support vectors and 
+1 class has 6 support vectors. (12 SVMs)
+
+```{r}
+table(predict=predict(svmfit.df,df.y[train.df,]),truth=df.y[train.df,]$y)
+```
+In this training set, the support vector classifier with polynomial has 2 errors. 
+(2/(38+30+2)=0.02857143; 2.9%)
+
+####Training set) Support vector machine with linear
+```{r}
+svmfit.dfl=svm(y~.,data=df.y[train.df,],kernel="linear")
+plot(svmfit.dfl,df.y[train.df,])
+```
+<br>
+This is the support vecotor machine with polynomial linear plot.
+
+```{r}
+summary(svmfit.dfl)
+```
+The gamma is 0.5. The -1 class has 3 support vectors and 1 class has 2 support vectors. (5 SVMs)
+
+```{r}
+table(predict=predict(svmfit.dfl,df.y[train.df,]),truth=df.y[train.df,]$y)
+```
+In this training set, the support vector classifier with linear has no error.
+
+####Training set) Support vector machine with radial
+```{r}
+svmfit.dfr=svm(y~.,data=df.y[train.df,],kernel="radial",gamma=1) #radial (gamma=1)
+plot(svmfit.dfr,df.y[train.df,])
+```
+This plot is support vector machine with radial kernel. (Gamma should be 1)
+
+```{r}
+summary(svmfit.dfr)
+```
+The -1 class has 5 support vectors and 1 class has 6 support vectors. (11 SVMs)
+
+```{r}
+table(predict=predict(svmfit.dfr,df.y[train.df,]),truth=df.y[train.df,]$y)
+```
+In this training set, the support vector classifier with linear has no error.
+
+#####Through training set, SVM with linear and radial kernel has no error.
+
+####Test set) Support vector machine with polynomial
+```{r}
+testdf=df.y[-train.df,]
+plot(svmfit.df,testdf)
+```
+
+```{r}
+table(predict=predict(svmfit.df,testdf),truth=testdf$y)
+```
+In test set, the support vector classifier with polynomial has 4 errors.
+
+####Test set) Support vector machine with linear
+```{r}
+plot(svmfit.dfl,testdf)
+```
+
+```{r}
+table(predict=predict(svmfit.dfl,testdf),truth=testdf$y)
+```
+In test set, the support vector classifier with linear has no error.
+
+####Test set) Support vector machine with radial
+```{r}
+plot(svmfit.dfr,testdf)
+```
+
+```{r}
+table(predict=predict(svmfit.dfr,testdf),truth=testdf$y)
+```
+In test set, the support vector classifier with radial has no error.
+
+#####Through test set, SVM with linear and radial kernel has no error.
+
+```{r}
+set.seed(10)
+c=rnorm(500)
+d=rnorm(500)
+class=1*(c^2-d^2>0)
+#class=sample(c(-1,1),500,replace=TRUE)
+CD=data.frame(c,d,class)
+#attach(CD)
+```
+
+```{r}
+plot(c,d,col=5+class,pch=4+class,xlab="X1",ylab="Y1",main="Quadratic boundary with two classes")
+#detach(CD)
+```
+Two different classes are separated well with quadratic boundary.
+
+```{r}
+logist.mo=glm(class~c+d,family="binomial") #logistic
+summary(logist.mo)
+```
+All predictors are significant and AIC is 432.95.
+
+```{r}
+pred.log=predict(logist.mo,CD,type="response")
+rep1=rep(0,500)
+rep1[pred.log>0.5]=1
+table(rep1)
+plot(CD[rep1==0,]$c,CD[rep1==0,]$d,col=5,pch=4,xlab="X1",ylab="Y1",main="Predicted labels with logistic regression model") #class should be 0 or 1
+points(CD[rep1==1,]$c,CD[rep1==1,]$d,col=6,pch=5,xlab="X1",ylab="Y1")
+```
+
+```{r}
+logist.mo1=glm(factor(class)~poly(c,2)+poly(d,2),family="binomial")
+summary(logist.mo1)
+```
+All variables are not significant and AIC is 10.
+
+```{r}
+pred.log1=predict(logist.mo1,CD,type="response")
+rep2=rep(0,500)
+rep2[pred.log1>0.5]=1
+table(rep2) #50%
+plot(CD[rep2==0,]$c,CD[rep2==0,]$d,col=5,pch=4,xlab="X1",ylab="Y1",main="Predicted labels with logistic regression model") #class should be 0 or 1
+points(CD[rep2==1,]$c,CD[rep2==1,]$d,col=6,pch=5,xlab="X1",ylab="Y1")
+```
+The classifier's shape is non-linear with training set (50%).
+
+```{r}
+svm.cd=svm(class~c+d,data=CD,kernel="linear")
+train=sample(100,75)
+CD.tr=CD[train,] #75 3
+pred.cd=predict(svm.cd,newdata=CD.tr) #Use training set
+rep3=rep(0,500)
+rep3[pred.cd>0.5]=1
+plot(CD[rep3==0,]$c,CD[rep3==0,]$d,col=5,pch=4,xlab="X1",ylab="Y1",main="SVM with two classes") #class should be 0 or 1
+points(CD[rep3==1,]$c,CD[rep3==1,]$d,col=6,pch=5,xlab="X1",ylab="Y1")
+```
+
+```{r}
+plot(CD[rep3==0,]$c,CD[rep3==0,]$d,col=5,pch=4,xlab="X1",ylab="Y1",main="SVM with a class") 
+```
+This plot shows only one class in case of rep3[pred.cd>=0.5]=0.
+
+```{r}
+svm.cd.ra=svm(class~c+d,data=CD,kernel="radial",gamma=1) #radial should have gamma=1.
+pred.cd.ra=predict(svm.cd.ra,newdata=CD.tr) #Use training set
+rep4=rep(0,500)
+rep4[pred.cd.ra>0.5]=1
+plot(CD[rep4==0,]$c,CD[rep4==0,]$d,col=5,pch=4,xlab="X1",ylab="Y1",main="SVM with two classes") #class should be 0 or 1
+points(CD[rep4==1,]$c,CD[rep4==1,]$d,col=6,pch=5,xlab="X1",ylab="Y1")
+```
+The observation is scattered without any boundaries.
+
+```{r}
+plot(CD[rep4==0,]$c,CD[rep4==0,]$d,col=5,pch=4,xlab="X1",ylab="Y1",main="SVM with a class") 
+```
+Depends on methods (logistic, etc.), the pattern with boundaries is changed. 
+
+```{r}
+library(ISLR)
+data(Auto)
+attach(Auto)
+```
+
+```{r}
+binary<-ifelse(mpg>median(mpg),1,0)
+Auto$fac.binary=as.factor(binary)
+```
+
+```{r}
+set.seed(10)
+tune.out=tune(svm,fac.binary~.,data=Auto,kernel="linear",ranges=list(cost=c(0.001,0.01,0.1,1,5,10,20,50,100,1000)))
+summary(tune.out)
+```
+*tune()* is performing cross-validation to select the best choice of gamma and cost for SVM.
+The best parameter cost is 10.(10-fold cv.)
+
+#####SVM with radial
+```{r}
+set.seed(10)
+tune.out.r=tune(svm,fac.binary~.,data=Auto,kernel="radial",ranges=list(cost=c(0.001,0.01,0.1,1,5,10,20,50,100,1000),gamma=c(0.5,1,2,3,4)))
+summary(tune.out.r)
+```
+When the cost is 5 and gamma is 0.5, the best parameters are.
+
+#####SVM with polynomial
+```{r}
+set.seed(10)
+tune.out.p=tune(svm,fac.binary~.,data=Auto,kernel="polynomial",ranges=list(cost=c(0.001,0.01,0.1,1,5,10,20,50,100,1000),gamma=c(0.5,1,2,3,4)))
+summary(tune.out.p)
+```
+When the cost is 0.001 and gamma is 3, the best parameters are.
+
+```{r}
+#pred.o=predict(tune.out,type="response") #Not working
+library(caret)
+#b.cfm<-confusionMatrix(is.list(sort(tune.out$best.parameters)),reference=c(tune.out$best.parameters$cost,tune.out$best.parameters$gamma),dnn="Prediction") #Don't know reference
+```
+*tune()* can't make confusion matrix like table. I would like to use *svm()*.
+
+```{r}
+svmlinear=svm(fac.binary~.,data=Auto,kernel="linear",cost=10) #From b) of cost
+auto.p.l=predict(svmlinear,Auto)
+table(Auto$fac.binary,auto.p.l)
+```
+
+```{r}
+svmradial=svm(fac.binary~.,data=Auto,kernel="radial",cost=5,gamma=0.5) #From c) of cost and gamma
+auto.p.r=predict(svmradial,Auto)
+table(Auto$fac.binary,auto.p.r)
+```
+
+```{r}
+svmpoly=svm(fac.binary~.,data=Auto,kernel="polynomial",cost=0.001,gamma=3) #From c) of cost and gamma
+auto.p.p=predict(svmpoly,Auto)
+table(Auto$fac.binary,auto.p.p)
+```
+
+```{r}
+set.seed(10) 
+dim(OJ) #1070 18
+train=sample(dim(OJ)[1],800) #800
+O.train=OJ[train,] #800 18
+O.test=OJ[-train,] #270 18
+```
+
+```{r}
+svm.fit=svm(Purchase~.,data=OJ.train,kernel="linear",cost=0.01)
+summary(svm.fit)
+```
+The number of support vectors is 451 and gamma is approximately 0.056. 
+
+####c. What are the training and test error rates? 
+#####Training error
+```{r}
+train.p.o=predict(svm.fit,OJ.train)
+table(OJ.train$Purchase,train.p.o)
+```
+
+```{r}
+tran.er=(63+76)/(63+76+413+248)
+tran.er #0.17375 #Or 1-((413+248)/(63+76+413+248))
+```
+Training set error is 17.3%.
+
+#####Test error
+```{r}
+test.p.o=predict(svm.fit,OJ.test)
+table(OJ.test$Purchase,test.p.o)
+```
+
+```{r}
+test.er=(22+20)/(22+20+155+73)
+test.er #0.1555556
+```
+Test set error is 15.6%
+
+####d. Use the $tune()$ function to select an optimal $cost$. Consider values in the range 0.01 to 10.
+```{r}
+set.seed(10)
+tune.out.l=tune(svm,Purchase~.,data=OJ.train,kernel="linear",ranges=seq(0.01,10,by=0.5))
+summary(tune.out.l)
+```
+The optimal cost is 0.01.
+
+#####Training set error
+```{r}
+set.seed(10)
+svm.co=svm(Purchase~.,data=OJ.train,kernel="linear",cost=tune.out.l$best.parameters$Var1)
+train.pn=predict(svm.co,OJ.train)
+table(OJ.train$Purchase,train.pn)
+```
+
+```{r}
+1-((413+248)/(413+248+63+76)) #0.17375
+```
+New cost is 0.01 and the training set error is 17.4%.
+
+#####Test set error
+```{r}
+test.pn=predict(svm.co,OJ.test)
+table(OJ.test$Purchase,test.pn)
+```
+
+```{r}
+1-((155+73)/(155+73+22+20)) #0.1555556
+```
+New cost is 0.01 and the test set error is 15.6%.
+
+```{r}
+set.seed(10)
+svm.f=svm(Purchase~.,data=OJ.train,kernel="radial",gamma=5) #Gamma is randomly chosen
+train.f=predict(svm.f,OJ.train)
+table(OJ.train$Purchase,train.f)
+train.f.er=1-((453+276)/(453+276+23+48))
+train.f.er #0.08875
+test.f=predict(svm.f,OJ.test)
+table(OJ.test$Purchase,test.f)
+test.f.er=1-((153+61)/(153+61+24+32))
+test.f.er #0.2074074
+```
+In svm's radial kernel, training set error is 8.9% and test set error is 20.74%. 
+
+```{r}
+#Put more options
+set.seed(10)
+tune.out.fr=tune(svm,Purchase~.,data=OJ.train,kernel="radial",ranges=seq(0.01,10,by=0.5))
+summary(tune.out.fr) 
+```
+
+```{r}
+set.seed(10)
+tune.out.frn=tune(svm,Purchase~.,data=OJ.train,kernel="radial",cost=tune.out.fr$best.parameter$Var1)
+summary(tune.out.frn)
+```
+The optimal cost can be 0.01.
+
+```{r}
+set.seed(10)
+svm.fc=svm(Purchase~.,data=OJ.train,kernel="radial",gamma=5,cost=0.01) #Gamma is randomly chosen
+train.f=predict(svm.fc,OJ.train)
+table(OJ.train$Purchase,train.f)
+train.f.er=1-((476)/(476+324))
+train.f.er #0.405
+test.f=predict(svm.fc,OJ.test)
+table(OJ.test$Purchase,test.f)
+test.f.er=1-((177)/(177+93))
+test.f.er #0.3444
+```
+The training set error is 40.5% and test set error is 34.4%.
+
+```{r}
+set.seed(10)
+svm.d=svm(Purchase~.,data=OJ.train,kernel="polynomial",degree=2) 
+train.f=predict(svm.d,OJ.train)
+table(OJ.train$Purchase,train.f)
+train.f.er=1-((444+213)/(444+213+32+111))
+train.f.er #0.17875
+test.f=predict(svm.d,OJ.test)
+table(OJ.test$Purchase,test.f)
+test.f.er=1-((163+65)/(163+65+14+28))
+test.f.er #0.1555556
+```
+In svm's radial kernel, training set error is 17.9% and test set error is 15.6%. 
+
+```{r}
+set.seed(10)
+tune.out.fr=tune(svm,Purchase~.,data=OJ.train,kernel="polynomial",ranges=seq(0.01,10,by=0.5),degree=2)
+summary(tune.out.fr) 
+```
+
+```{r}
+set.seed(10)
+tune.out.frn=tune(svm,Purchase~.,data=OJ.train,kernel="polynomial",cost=tune.out.fr$best.parameter$Var1,degree=2)
+summary(tune.out.frn)
+```
+The optimal cost can be 0.01.
+
+```{r}
+set.seed(10)
+svm.fc=svm(Purchase~.,data=OJ.train,kernel="polynomial",degree=2,cost=0.01) #Gamma is randomly chosen
+train.f=predict(svm.fc,OJ.train)
+table(OJ.train$Purchase,train.f)
+train.f.er=1-((476+12)/(476+12+312))
+train.f.er #0.39
+test.f=predict(svm.fc,OJ.test)
+table(OJ.test$Purchase,test.f)
+test.f.er=1-((177+3)/(177+3+90))
+test.f.er #0.3333
+plot(svm.fc,OJ.test)
+```
+The training set error is 39% and test set error is 33%.
+
+Simply, see training set then figure much smaller training set's error. 
+In this case, linear < polynomial< radial. The best result is in linear.
+
