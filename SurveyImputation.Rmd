@@ -1,0 +1,201 @@
+--
+title: 'Assignment 7: Imputation'
+author: "Sungkyung Kang"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(GGally)
+library(mice)
+library(mitools)
+library(lmerTest)
+```
+
+```{r}
+set.seed(5049)
+```
+
+```{r}
+n <- 2000
+x1 <- rnorm(n, 0, 1)
+x2 <- rnorm(n, 0, 1)
+x3 <- rnorm(n, 0, 1)
+x4 <- rnorm(n, 0, 1)
+x5 <- rnorm(n, 0, 1)
+m <- matrix(c(1.00, 0.35, 0.35, 0.35, 0.35,
+            0.35, 1.00, 0.35, 0.35, 0.35,
+            0.35, 0.35, 1.00, 0.35, 0.35,
+            0.35, 0.35, 0.35, 1.00, 0.35,
+            0.35, 0.35, 0.35, 0.35, 1.00),nrow=5)
+L <- t(chol(m))
+
+before <- rbind(x1,x2,x3,x4,x5)
+betw <- L %*% before
+after <- t(betw)
+
+df <- data.frame(after)
+```
+
+```{r}
+df$X6 <- sample(c(0,1), nrow(df), replace = T)
+```
+
+```{r}
+df$y <-
+  1*df$X1+
+  2*df$X2+
+  3*df$X3+
+  4*df$X4+
+  5*df$X5-
+  6*df$X6+
+  rnorm(n, 0, 7)
+```
+
+```{r}
+df %>% 
+  ggpairs()
+```
+
+```{r}
+p1 <- runif(nrow(df), 0, 0.4)
+p2 <- runif(nrow(df), 0, 0.4)
+p3 <- runif(nrow(df), 0, 0.4)
+p4 <- runif(nrow(df), 0, 0.4)
+p5 <- runif(nrow(df), 0, 0.4)
+p6 <- runif(nrow(df), 0, 0.4)
+```
+
+```{r}
+pnX1 <- pnorm(df$X1, mean = mean(df$X1), sd=sd(df$X1))
+pnX2 <- pnorm(df$X2, mean = mean(df$X2), sd=sd(df$X2))
+pnX3 <- pnorm(df$X3, mean = mean(df$X3), sd=sd(df$X3))
+pnX4 <- pnorm(df$X4, mean = mean(df$X4), sd=sd(df$X4))
+pnX5 <- pnorm(df$X5, mean = mean(df$X5), sd=sd(df$X5))
+pny <- pnorm(df$y, mean = mean(df$y), sd=sd(df$y))
+```
+
+```{r}
+pX1 <- 2*(1-pnX1)
+pX2 <- 2*(1-pnX2)
+pX3 <- 2*(1-pnX3)
+pX4 <- 2*(1-pnX4)
+pX5 <- 2*(1-pnX5)
+pX6 <- 2*(1-pny)
+```
+
+```{r}
+df_miss <- df
+df_miss[pny<p1,]$X1 <- NA
+```
+
+```{r}
+df_miss[sample(1:nrow(df_miss), 200),]$X6 <- NA
+```
+
+```{r}
+cor(df,method="pearson")
+```
+The correlation between X5 and y is higher (0.6625068651) than in other pairs in the dataset, *df*.
+
+```{r}
+cor(df_miss,method="pearson")
+```
+The correlation between X5 and y is higher (0.6597792) than in other pairs in the dataset, *df_miss*.
+
+```{r}
+lm1 <- lm(y~X1+X2+X3+X4+X5+X6, df)
+summary(lm1)
+```
+From the result, the linear regression model is significant in the dataset, *df*. The estimates of X1, X2, X3, X4, and X5 are positive signs then X6 is a negative sign.  
+
+```{r}
+lm2 <- lm(y~X1+X2+X3+X4+X5+X6, df_miss)
+summary(lm2)
+```
+From the result, the linear regression model is significant in the dataset, *df_miss*. The estimates of X1, X2, X3, X4, and X5 are positive signs then X6 is a negative sign.  
+
+Then fit a second model and y is regressed on the same predictors in the same way but using the data with missing values.
+
+The result is above with *df_miss* including missing values. 
+
+Of 2000, 553 observations are deleted due to missingness. 
+
+```{r}
+imputed_dfmiss <- mice(df_miss,print=F)
+summary(imputed_dfmiss)
+```
+
+```{r}
+lm3 <- lm(y~X2+X3+X4+X5, df_miss)
+summary(lm3)
+```
+In the dataset including missing values, *df_miss*, the appropriate regression model is including X2, X3, X4 and X5 as independent variables. 
+
+Use ordinary linear regression for all variables except X6, use logistic regression there (and make sure X6 is a factor before you run the multiple imputation). Make 25 imputed data frames with 20 iterations of imputation each. Name the resulting object *imp*.
+
+```{r}
+lm4 <- lm(y~X1+X2+X3+X4+X5, df_miss)
+summary(lm4)
+```
+This is the ordinary linear regression including all variables except for X6. 
+```{r}
+X6 <- factor(df_miss$X6)
+lg1 <- glm(X6 ~ X1+X2+X3+X4+X5, family=binomial, data=df_miss)
+summary(lg1)
+```
+This is the logistic regression.
+
+```{r}
+imp <- mice(df_miss,m=25,maxit=20,print=F)
+summary(imp)
+```
+This is the result of the imputing process with 20 iterations and 25 imputations. 
+
+```{r}
+imp1 <- mice(df_miss,m=10,maxit=20,print=F)
+summary(imp1)
+```
+
+This is the result of the imputing process with 20 iterations and 10 imputations. 
+
+Use the `stripplot()` function to examine the distribution of imputed values of the numerical variables in all 10 imputed data frames.
+
+```{r,warning=F,message=F}
+stripplot(y~X2+X3+X4+X5,data=df_miss)
+```
+</br></br>
+This is the strip plot based on the dataset, *df_miss*.
+
+```{r}
+stripplot(imp1)
+```
+</br></br>
+This is the strip plot based on *imp1*. 
+
+```{r}
+xyplot(imp1,y~X1)
+```
+</br></br>
+This is the xyplot with X1 and y in the dataset *imp1*. 
+
+```{r}
+meth <- make.method(df_miss)
+imp2 <- mice(df_miss,meth=meth,print=F)
+plot(imp2)
+```
+</br></br>
+The plots show the variables, X1 and X6. These are the non-convergence of the MICE algorithm then imputations for X1 and X6 hardly mix and resolve into a steady state. The results are plotted as mean and standard deviations per iteration of the imputed values of X1 and X6. 
+
+```{r}
+fit <- with(df_miss,glm(X6 ~ X1+X2+X3+X4+X5,family=binomial))
+fit
+```
+The function is used from the logistic linear model I did in question 4. From the result, AIC is 2006. 
+
+```{r,warning=F,message=F,error=F}
+imp3 <- mice(df_miss, maxit=2, m=2)
+fit1 <- with(data=imp3,exp=lm2)
+summary(pool(fit1))
+```
+This is the pool result from MICE algorithm and the linear regression model (`lm(y~X1+X2+X3+X4+X5+X6, df_miss)`). 
