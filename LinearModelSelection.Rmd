@@ -1,0 +1,334 @@
+---
+title: Linear model selection & Regularization'
+author: "Sungkyung Kang"
+---
+
+```{r,echo=FALSE,results='hide',warning=FALSE,message=FALSE,cache=FALSE}
+library(glmnet)
+library(pls)
+library(leaps)
+library(ggplot2)
+```
+
+```{r}
+library(ISLR) #College data set
+data(College)
+```
+
+```{r}
+set.seed(2) 
+#dim(College) #777 rows & 18 colums
+#names(College)
+train=sample(dim(College)[1],round(dim(College)[1]*0.5)) #Numbers
+test=(-train)
+#y.test=y.C[test]
+```
+The total number of rows in *College* data set is 777 (odd). 
+Let's suggest a training set has 388 rows and a test set has 389 rows.
+
+```{r}
+#head(College)
+train.fit=lm(Apps~.-Private,data=College[train,]) #subset=train
+mse.te<-mean((College$Apps-predict(train.fit,College))[-train]^2) #MSE test set
+#table(College$Private)
+```
+A multiple linear model is predicting the number of applications received (*Apps*) 
+by using the 16 rest of variables after removing a categorical variable(*Private*). The estimated MSE test error 
+for this multiple linear regression fit is 1452154.
+
+```{r}
+x.C=model.matrix(Apps~.-Private,College)[,-1]
+y.C=College$Apps
+y.test=y.C[test]
+grid=10^seq(-2,10,length=100) #Default
+ridge.C.model=glmnet(x.C[train,],y.C[train],alpha=0,lambda=grid)
+set.seed(2)
+cv.out<-cv.glmnet(x.C[train,],y.C[train],alpha=0) 
+plot(cv.out,main="MSE on test set")
+```
+<br>
+This plot shows the test set's MSE (Mean Square Error) with different value of $/lambda$ on *College* data set. 
+In ridge regression, as $/lambda$ increases the flexibility of the ridge regression decreases. 
+Then it leads to decrease variance with a smaller increase in bias. (Caution: When $\alpha$=0, a ridge regression is fit.)
+
+```{r}
+lambda.C<-cv.out$lambda.min 
+ridge.C.pred=predict(ridge.C.model,s=lambda.C,newx=x.C[test,])
+#plot(ridge.C.model) #Looks strange
+mean((ridge.C.pred-y.test)^2) #Test MSE = 2425048 ##
+mean((mean(y.C[train])-y.test)^2) #Test MSE = 17671450
+```
+In ridge regression, alpha is suggested to set zero for model fit.
+The lambda chosen by CV is 357.5734. The test MSE is 2425048. The test MSE using training observations 
+however is 17671450. The test error of ridge regressin model is smaller than another. 
+
+```{r}
+lasso.model=glmnet(x.C[train,],y.C[train],alpha=1,lambda=grid)
+#plot(lasso.model)
+set.seed(2)
+cv.out<-cv.glmnet(x.C[train,],y.C[train],alpha=1) 
+lambda.C<-cv.out$lambda.min #13.46241 when alpha=1
+lasso.pred=predict(lasso.model,s=lambda.C,newx=x.C[test,])
+mean((lasso.pred-y.test)^2) #Test set MSE is 1531805 ##
+```
+Lasso regression model is enable to be more accurate or interpretable than ridge regression model. 
+($\alpha$ is 1 for lasso model fit.) Generally test set MSE using lasso model (1531805) is lower than null model.
+
+```{r, eval=FALSE}
+out=glmnet(x.C,y.C,alpha=1,lambda=grid)
+lasso.coef=predict(out,type="coefficients",s=lambda.C)[1:18,] #Including zero coefficient on F.Undergrad, Books
+lasso.coef[lasso.coef!=0] #15 variables
+```
+For showing only non-zero coefficient estimates, I would like to remove two variables, *F.Undergrad*, and *Books*.
+
+```{r}
+set.seed(100)
+PCR.fit=pcr(Apps~.-Private,data=College,scale=TRUE,validation="CV")
+summary(PCR.fit) #M = 16 components
+```
+This is Principal components regression (PCR). Basically cross-validation is 10 folds. In summary, 
+when 16 components are, a root mean squared error of 1163 corresponds to an MSE of $1163^2$ = 1352569.
+
+```{r}
+validationplot(PCR.fit,val.type="MSEP",main="The plot of CV MSE")
+```
+<br>
+The MSE is going down when the number of components increases. There are some of elbows extremely chaning pattern.
+
+```{r}
+#set.seed(100)
+PCR.pred=predict(PCR.fit,x.C[test,],ncomp=16) ##M = 16
+mean((PCR.pred-y.test)^2) #MSE = 1132388
+```
+For example, when M = 16 in cross-validation, test set error MSE is 1132388.  
+
+```{r}
+PCR.fit2=pcr(Apps~.-Private,data=College,scale=T,ncomp=5)
+summary(PCR.fit2)
+PCR.pred2=predict(PCR.fit2,x.C[test,],ncomp=5)
+mean((PCR.pred2-y.test)^2) #MSE = 3101615
+```
+When I fit PCR on the full data set using M = 5, the test set error MSE is 3101615.
+
+```{r}
+set.seed(2)
+PLS.fit=plsr(Apps~.-Private,data=College,scale=T,subset=train,validation="CV")
+summary(PLS.fit)
+validationplot(PLS.fit,val.type="MSEP",main="MSE of PLS plot")
+```
+<br>
+This is Partial Least Squares (PLS). In the plot of MSE, the lowest MSE is when component (M) is 11. 
+
+```{r}
+PLS.pred=predict(PLS.fit,x.C[test,],ncomp=11) ##M = 11
+mean((PLS.pred-y.test)^2) #MSE = 1462696
+```
+This is Partial Least Squares (PLS). When component is 11, the test set MSE is 1462696. Although M is different on PCR and PLS, the test MSE on PLS is higher than PCR. 
+
+
+```{r}
+summary(train.fit) #92.35% (Multiple R-squared)
+```
+The accuracy of multiple linear regression model is 92.35% with multiple R-squared.
+
+```{r}
+summary(PCR.fit) #92.8%; Apps (M=16)
+```
+The percentage of variance in *Apps* that the 16 components PCR fit explains 92.8%.
+
+```{r}
+summary(PLS.fit) #92.35%; Apps (M=16)
+```
+The percentage of variance in *Apps* that the 16 components PCR fit explains 92.35%.
+
+```{r}
+plot(ridge.C.model,xvar="dev",label=TRUE)
+```
+<br>
+This ridge model plot tells observers how much of the (fraction) deviance which is similar to R-squared is explaining.
+
+```{r}
+plot(lasso.model,xvar="dev",label=TRUE)
+```
+<br>
+This lasso model plot tells observers how much of the (fraction) deviance which is similar to R-squared is explaining.
+
+```{r}
+mse.te<-mean((College$Apps-predict(train.fit,College))[-train]^2) #1452154
+mean((ridge.C.pred-y.test)^2) #Test MSE = 2425048 
+mean((lasso.pred-y.test)^2) #Test set MSE is 1531805
+mean((PCR.pred-y.test)^2) #MSE = 1132388 (M = 16)
+mean((PLS.pred-y.test)^2) #MSE = 1462696 (M = 11)
+```
+For multiple linear regression, the test set MSE is 1452154. For the ridge regression model, the test set MSE is 2425048. For the lasso regression model, the test set MSE is 1531805. For the PCR, the test set MSE is 1132388 on M = 16. For the PLS, the test set MSE is 1462696 on M = 11. (The test set MSE: PCR < multiple linear regression < PLS < Lasso regression < Ridge regression; PCR has the smallest test set MSE.)
+
+```{r}
+set.seed(100)
+xmat<-matrix(rnorm(1000*20),ncol=20) #P=20(features)
+eps<-rnorm(1000)
+beta<-rpois(20,2) #lambda=2 (The bigger lambda, the much non-zero values)
+y=xmat%*%beta+eps #Numeric, 1000
+```
+
+```{r}
+train=sample(1:nrow(y),size=100,replace=FALSE)
+test<--train
+x.train=xmat[train,]
+x.test=xmat[test,]
+y.train=y[train,] #100
+y.test=y[test,] #If replace is TRUE, 906
+#train.y=y[train,] #100
+#test=y[-train,] #If replace is TRUE, 906
+```
+
+```{r}
+train.data=data.frame(y=y.train,x=x.train) #100
+#data.y<-data.frame(y=y,x=xmat)
+regfit.best=regsubsets(y~.,data=train.data,nvmax=20)
+train.mat=model.matrix(y~.,data=train.data,nvmax=20) #100
+#regfit.best=regsubsets(x=xmat,y=y,data=data.y[train.y],nvmax=20)
+#test.mat=model.matrix(object=xmat,data=data.y[test,])
+val.errors=rep(NA,20)
+for(i in 1:20){
+  coefi=coef(regfit.best,id=i)
+  pred=train.mat[,names(coefi)]%*%coefi
+  val.errors[i]=mean((y.train-pred)^2)
+}
+plot(val.errors,xlab="The number of predictors",ylab="MSE",main="Plot of training set MSE",col="red",cex=1)
+```
+<br>
+The plot shows how big or small MSE on training set by the number of predictors. When the number of predictors 
+is increasing, training set MSE is going down (quadratically). When the number of predictors is 20, it is the smallest
+MSE. (MSE smaller is not sufficient in the best model selection.)
+
+```{r}
+test.data=data.frame(y=y.test,x=x.test) #900
+regfit.best1=regsubsets(y~.,data=test.data,nvmax=20)
+test.mat=model.matrix(y~.,data=test.data,nvmax=20) 
+val.errors=rep(NA,20)
+for(i in 1:20){
+  coefi=coef(regfit.best,id=i)
+  pred=test.mat[,names(coefi)]%*%coefi
+  val.errors[i]=mean((y.test-pred)^2)
+}
+plot(val.errors,xlab="The number of predictors",ylab="MSE",main="Plot of test set MSE",col="red",cex=1)
+```
+<br>
+The plot shows how big or small MSE on test set by the number of predictors. 
+When the number of predictors is increasing, test set MSE is going down (quadratically). 
+When the number of predictors is 18, it is the smallest MSE in the plot.
+
+```{r}
+predict.regsubsets=function(object,newdata,id){
+  form=as.formula(object$call [[2]])
+  mat=model.matrix(form,newdata)
+  coefi=coef(object ,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+predreg.test<-predict.regsubsets(object=regfit.best1,newdata=test.data,id=20)
+ggplot(test.data,aes(x=seq(1:900),y=predreg.test))+
+geom_point(color="firebrick3")+
+  labs(title="Scattor plot of test set predicted",x="Index",y="Value of test set predicted") 
+```
+
+```{r}
+which.min(val.errors)
+```
+The minimum value on test set MSE is approximately 0.9 on X (the number of predictors) = 20.
+
+```{r}
+coef(regfit.best1,20)
+```
+In the model, these are coefficients ($\beta_i$, ($i$=1,...,20)). $Y$ = $\beta_0+\beta_1*X_1+...+\beta_{20}*X_{20}+\epsilon$ is this model.
+
+```{r}
+B<-coef(regfit.best1,20)
+#length(B) #21
+#names(B)<-c(paste("x",1:(length(B)),sep="")) #B has true parameter
+par.error<-vector()
+i<-NULL
+#for(i in 1:length(B)){
+#  var<-names(coef(full.lm,id=i)[-1])
+#  par.error[i]<-sum((B[names(B)%in%var]-coef(full.lm,id=i)[-1])^2)
+#} #Not working on mine
+estimated<-mean(B)
+for(i in 1:length(B)){
+  par.error[i]=sqrt(sum(B[i]-estimated)^2)
+}
+plot(par.error,xlab="Index",ylab="Errors",col="red",cex=1,main="The plot of Errors")
+```
+<br>
+In this plot (looks strange), different index has differnt errors term by formula. When index is 17 (x.17), the error is the highest. 
+
+```{r}
+library(MASS)
+data(Boston)
+```
+####The Lasso regression
+```{r}
+set.seed(100)
+#names(Boston)
+dim(Boston) #506 rows and 14 columns
+train.B=sample(dim(Boston)[1],round(dim(Boston)[1]*0.75)) #75% put training set (380)
+train.B.fit=lm(crim~.,data=Boston,subset=train.B) #13 predictors
+mse.B.te<-mean((Boston$crim-predict(train.B.fit,Boston))[-train.B]^2) #Test MSE = 33.63002
+x.B=model.matrix(crim~.,Boston)[,-1]
+y.B=Boston$crim
+test.B=(-train.B) 
+test.B.y=y.B[test.B]
+```
+Now let's suggest that 75% data set puts a trainig set. 
+A linear regression model has 13 predictors to predict *crim*. This model's trest set error is 33.63. 
+
+```{r}
+lasso.B.model=glmnet(x.B[train.B,],y.B[train.B],alpha=1,lambda=grid)
+plot(lasso.B.model,main="Coefficient plot of lasso model in Boston data set",xlab="The number of predictors")
+```
+<br>
+This plot is coefficeint plot depending on the different parameters. 
+Most of line is fitting on coefficient is zero. 
+
+```{r}
+#set.seed(100)
+cv.B.out<-cv.glmnet(x.B[train.B,],y.B[train.B],alpha=1)
+plot(cv.B.out,main="MSE on test set of CV in Boston data set")
+lambda.B<-cv.B.out$lambda.min
+```
+I would like to say a lambda where lambda is smaller in test set. 
+When lambda is smaller, the Lasso regression is much closer to OLS. As lambda grows, 
+the regularization term is growing effect up and I will see fewer variables in the model. 
+Lambda is the weight given to regularization term. As lambda approaches zero, the loss function 
+of model approaches the OLS loss function.
+
+```{r}
+lasso.pred=predict(lasso.B.model,s=lambda.B,new=x.B[test.B,])
+mean((lasso.pred-test.B.y)^2) #Test MSE = 33.58841
+```
+Compared to original linear regression in test set's error (33.63002), lasso regression 
+has slightly smaller test set's error (33.58841).
+
+####The Ridge regression
+```{r}
+ridge.mod2<-glmnet(x.B[train.B,],y.B[train.B],alpha=0,lambda=grid)
+ridge.pred2<-predict(ridge.mod2,s=lambda.B,newx=x.B[test.B,])
+mean((ridge.pred2-test.B.y)^2) #Test MSE = 33.61833
+```
+
+####PCR
+```{r}
+pcr.fit3<-pcr(crim~.,data=Boston,sclae=TRUE,validation="CV")
+summary(pcr.fit3) #13 comp
+pcr.fit4<-pcr(crim~.,data=Boston,sclae=TRUE,validation="CV",subset=train.B)
+pcr.pred3<-predict(pcr.fit4,x.B[test.B,],ncomp=10)
+mean((pcr.pred3-test.B.y)^2) #Test MSE = 32.22702
+```
+The comparision of Lasso, Ridge, and PCR, the lowest test set MSE is PCR.
+
+```{r}
+#PCR
+validationplot(pcr.fit3,val.type="MSEP",main="MSE of full model PCR") #Full
+```
+```{r}
+summary(pcr.fit3) #Including all features, 13 comps
+```
