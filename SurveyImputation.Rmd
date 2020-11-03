@@ -107,13 +107,15 @@ The correlation between X5 and y is higher (0.6597792) than in other pairs in th
 lm1 <- lm(y~X1+X2+X3+X4+X5+X6, df)
 summary(lm1)
 ```
-From the result, the linear regression model is significant in the dataset, *df*. The estimates of X1, X2, X3, X4, and X5 are positive signs then X6 is a negative sign.  
+From the result, the linear regression model is significant in the dataset, *df*. 
+The estimates of X1, X2, X3, X4, and X5 are positive signs then X6 is a negative sign.  
 
 ```{r}
 lm2 <- lm(y~X1+X2+X3+X4+X5+X6, df_miss)
 summary(lm2)
 ```
-From the result, the linear regression model is significant in the dataset, *df_miss*. The estimates of X1, X2, X3, X4, and X5 are positive signs then X6 is a negative sign.  
+From the result, the linear regression model is significant in the dataset, *df_miss*. The estimates of X1, X2, X3, X4, 
+and X5 are positive signs then X6 is a negative sign.  
 
 Then fit a second model and y is regressed on the same predictors in the same way but using the data with missing values.
 
@@ -130,9 +132,11 @@ summary(imputed_dfmiss)
 lm3 <- lm(y~X2+X3+X4+X5, df_miss)
 summary(lm3)
 ```
-In the dataset including missing values, *df_miss*, the appropriate regression model is including X2, X3, X4 and X5 as independent variables. 
+In the dataset including missing values, *df_miss*, the appropriate regression model is including X2, X3, X4 and X5 as 
+independent variables. 
 
-Use ordinary linear regression for all variables except X6, use logistic regression there (and make sure X6 is a factor before you run the multiple imputation). Make 25 imputed data frames with 20 iterations of imputation each. Name the resulting object *imp*.
+Use ordinary linear regression for all variables except X6, use logistic regression there (and make sure X6 is a factor 
+before you run the multiple imputation). Make 25 imputed data frames with 20 iterations of imputation each. Name the resulting object *imp*.
 
 ```{r}
 lm4 <- lm(y~X1+X2+X3+X4+X5, df_miss)
@@ -185,7 +189,9 @@ imp2 <- mice(df_miss,meth=meth,print=F)
 plot(imp2)
 ```
 </br></br>
-The plots show the variables, X1 and X6. These are the non-convergence of the MICE algorithm then imputations for X1 and X6 hardly mix and resolve into a steady state. The results are plotted as mean and standard deviations per iteration of the imputed values of X1 and X6. 
+The plots show the variables, X1 and X6. These are the non-convergence of the MICE algorithm then imputations for X1 and X6 
+hardly mix and resolve into a steady state. The results are plotted as mean and standard deviations per iteration of the 
+imputed values of X1 and X6. 
 
 ```{r}
 fit <- with(df_miss,glm(X6 ~ X1+X2+X3+X4+X5,family=binomial))
