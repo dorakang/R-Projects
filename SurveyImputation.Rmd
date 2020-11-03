@@ -1,5 +1,5 @@
 --
-title: 'Assignment 7: Imputation'
+title: 'Survey Analysis: Imputation'
 author: "Sungkyung Kang"
 ---
 
