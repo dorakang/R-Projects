@@ -1,0 +1,347 @@
+---
+title: 'Tree-basedmethod'
+author: "Sungkyung Kang"
+---
+
+```{r,echo=FALSE,results='hide',warning=FALSE,message=FALSE,cache=FALSE}
+library(tree)
+library(gbm)
+library(randomForest)
+```
+
+```{r}
+library(ISLR) #Carseats data set
+```
+
+```{r}
+set.seed(100) 
+#dim(Carseats) #400 11
+train=sample(dim(Carseats)[1],round(dim(Carseats)[1]*0.75)) #300
+C.train=Carseats[train,] #300 12
+C.test=Carseats[-train,] #100 12
+```
+In this case, training set has 300 indices and test set has 100 indices. (75% cross-validation)
+
+```{r}
+#rm(list=ls(all=TRUE))
+tree.carseats=tree(Sales~.,data=C.train)
+plot(tree.carseats)
+text(tree.carseats,pretty=0)
+```
+<br>
+This is unpruned tree. For example, in the case 'Price<126.5' left-hand branch corresponds 
+to *Price<126.5* and right-hand branch corresponds to *Price>=126.5*. This tree has seven 
+internal nodes and 16 terminal nodes (leaves). The number in each leaf is the mean of the 
+response for the observations fall there. <br>
+(In regression tree, quantitative variable should be put as response.)
+
+```{r}
+summary(tree.carseats)
+carseats.test=Carseats[-train,"Sales"]
+yhat=predict(tree.carseats,newdata=C.test) #test set predicted
+mean((yhat-carseats.test)^2) #Test set MSE: 4.68555
+```
+From summary of tree, number of terminal nodes, residual mean deviance, and distribution of 
+residuals are obtained. <br>
+The test set error (MSE) is 4.68555.
+
+```{r}
+cv.carseats=cv.tree(tree.carseats) 
+cv.carseats$size[which.min(cv.carseats$dev)] #16
+par(mfrow=c(1,2))
+plot(cv.carseats$size,cv.carseats$dev,type="o",col="red",xlab="Size",ylab="Deviance",main="Deviance with Size",pch=16) #size=12
+plot(cv.carseats$k,cv.carseats$dev,type="o",col="red",xlab="K",ylab="Deviance",main="Deviance with K",pch=16) 
+```
+<br>
+The measured size having the smallest deviance is 16 but I would like to prune so it should be 
+less than 16. Size 12 is elbow which is changing. <br>
+When the size is 12, deviance is the smallest with 1382.708.
+
+```{r}
+prune.carseats=prune.tree(tree.carseats,best=12) #Size having smallest deviance, by CV
+par(mfrow=c(1,1))
+plot(prune.carseats)
+text(prune.carseats,pretty=0)
+```
+<br>
+For doing prune, I would like to use tree of size is 12 with smallest deviance. 
+In order to get 12 nodes tree, I would like to prune the tree. This tree has 5 internal nodes. 
+(Normally pruning is done after making tree and reducing unnecessary nodes for avoiding overfitting.)
+
+```{r}
+tree.pred=predict(prune.carseats,C.test)
+yhat.p=predict(prune.carseats,newdata=C.test)
+mean((yhat.p-C.test$Sales)^2) #4.601333
+```
+After pruning, the test set error (MSE) is 4.601333. 
+The test set error after pruning is therefore smaller than before.
+
+```{r}
+set.seed(10)
+bag.carseats=randomForest(Sales~.,data=C.train,mtry=10,importance=TRUE) 
+bag.carseats
+yhat.c.b=predict(bag.carseats,newdata=C.test)
+mean((yhat.c.b-C.test$Sales)^2) #2.870362
+```
+Bagging is building a number of decision trees on bootstrapped training samples (not considering 
+each time a split in a tree). Random forests has an improvement over bagged trees with decorrelating 
+the trees (each split). 
+In this model, the number of predictors can be 10. (All 10 predictors should be considered for 
+each split of the tree.)
+The test error associated with the bagged regression tree is 2.870362.
+
+```{r}
+importance(bag.carseats)
+```
+From this output, *'IncNodePurity'* is the total decreasess in node impurities from 
+splitting on the variable averaged over all trees. The higher value of this should 
+have significant decreasing of node imputiy then can be selected as most important variable.
+*'ShelveLoc'* (A factor with levels Bad, Good and Medium indicating the quality of the 
+shelving location for the car seats at each site) and *'Price'* (Price company charges for 
+car seats at each site) can be seleved as most important variables. 
+
+#####Random forest
+```{r}
+rf.carseats=randomForest(Sales~.,data=C.train,mtry=3,ntree=50,importance=TRUE)
+yhat.c.r=predict(rf.carseats,newdata=C.test)
+mean((yhat.c.r-C.test$Sales)^2) #2.732501 (Change: 3.039695)
+```
+The test set error of Random forest method is 2.732501. 
+This is smaller than MSE of bagging. (Bagging: $m=p$, random forest: $m=sqrt(p)$, 
+m is *mtry* in randomForest())
+
+```{r}
+importance(rf.carseats)
+```
+*'ShelveLoc'* and *'Price'* can be seleved as most important variables as INcNodePurity. 
+
+```{r}
+#library(ISLR) #OJ data set
+```
+
+```{r}
+set.seed(10)
+train=sample(1:nrow(OJ),800)
+OJ.train=OJ[train,]
+OJ.test=OJ[-train,]
+```
+
+```{r}
+#head(OJ)
+attach(OJ)
+tree.o=tree(Purchase~.,OJ,subset=train) 
+summary(tree.o)
+#yhat.o=predict(tree.o,data=OJ.test)
+#mean((yhat.o-OJ.test$Purchase)^2) #Factor (Purchase) so not working
+```
+In summary, the number of terminal nodes is 7. Training error rate is 0.1625 (corresponds to 
+misclassification error rate). 
+
+```{r}
+tree.o
+```
+Terminal nodes are indicated with *. I would like to pick 4th node. This split is LoyalCH < 0.276142, 
+the number of observation is 172, and deviance is 119.5. In the left-hand side of yprob, 0.11047 ratio 
+is corresponding to LoyalCH < 0.276142 and the rest of yprob, 0.88953, corresponds to LoyalCH >= 0.276142. 
+
+```{r}
+plot(tree.o)
+text(tree.o,pretty=0)
+```
+Response variable is factor (*Purchase*) so the terminal nodes have factor values not numerical. 
+The number of terminal nodes is 7 and of internal nodes is 4. 
+
+```{r}
+tree.pred.o=predict(tree.o,newdata=OJ.test,type="class")
+table(tree.pred.o,OJ.test$Purchase)
+```
+
+```{r}
+(155+66)/(155+66+27+22) #0.8185185
+1-((155+66)/(155+66+27+22)) #0.1814815
+```
+Correct prediction ratio is 81.85% then test error rate should be approximately 18.15%.
+
+####f. Apply the cv.tree() function to the training set in order to determine the optimal tree size.
+```{r}
+cv.o=cv.tree(tree.o,FUN=prune.misclass)
+cv.o
+min(cv.o$dev) #149
+which.min(cv.o$size) #5 (Change deviance and size)
+cv.o$size[which.min(cv.o$dev)]
+```
+With the minimum of deviance (149), the optimal tree size can be 5.
+
+####g. Produce a plot with tree size on the x-axis and cross-validated classification error rate on the y-axis.
+```{r}
+plot(cv.o$size,cv.o$dev,type="o",pch=16,col="red",main="Cross validation of OJ",ylab="Deviance",xlab="Size")
+```
+<br>
+In this plot, the size 5 has smallest deviance. 
+
+#####First trial was 7 optimal number.
+```{r}
+prune.o=prune.misclass(tree.o,best=7)
+plot(prune.o)
+text(prune.o,pretty=0)
+```
+<br>
+After pruning, cross-validation does not lead to selection of a pruned tree. 
+I mean there is not remarkable change. 
+
+#####Second trial is 5 optimal number.
+```{r}
+prune.o5=prune.misclass(tree.o,best=5)
+plot(prune.o5)
+text(prune.o5,pretty=0)
+```
+<br>
+The number of terminal nodes is five and of internal nodes is four.
+
+```{r}
+summary(prune.o5)
+```
+The number of terminal nodes is 5, residual mean deviance is 0.8377, 
+and misclassification error rate is 0.1725.
+
+```{r}
+tree.pred.o5=predict(prune.o5,OJ.test,type="class")
+table(tree.pred.o5,OJ.test$Purchase)
+```
+
+```{r}
+(151+68)/(151+68+25+26) #0.8111111
+```
+Around 81% of the test observations are correctly classified. 
+After pruning, the classification accuracy is reduced. 
+
+```{r}
+summary(tree.o)
+summary(prune.o5)
+```
+After pruning with 5 terminal nodes, the misclassification error rate (0.1725) is increasing. 
+
+```{r}
+prune.o5.er=1-((151+68)/(151+68+25+26)) 
+unpruned.er=1-((155+66)/(155+66+27+22))
+prune.o5.er #0.1888889
+unpruned.er #0.1814815
+```
+After pruning, the test error rate is higher than in unpruned.
+
+```{r}
+attach(Hitters)
+Hitters<-na.omit(Hitters)
+#head(Hitters)
+#dim(Hitters) #263-20 after removing NA, (322-20; ori)
+Salary<-log(Hitters$Salary)
+```
+
+```{r}
+set.seed(100) 
+train=sample(dim(Hitters)[1],round(dim(Hitters)[1]*0.76)) #200
+H.train=Hitters[train,]
+H.test=Hitters[-train,]
+```
+
+```{r}
+#set.seed(10)
+#names(Hitters)
+lambda=seq(0.001,0.01,by=0.0001)
+i=NULL
+boost.Hitters=rep(NA,length(lambda))
+train.h.er=rep(NA,length(lambda))
+for(i in 1:length(lambda)){
+boost.Hitters=gbm(Salary~.,data=H.train,distribution="gaussian",n.trees=1000,shrinkage=lambda[i])
+predict.t.h=predict(boost.Hitters,newdata=H.train,n.trees=1000) #training set's error
+train.h.er[i]=mean((predict.t.h-H.train$Salary)^2)
+}
+#boost.Hitters ##5.970694
+min(train.h.er) #0.1424719
+lambda[which.min(train.h.er)] #0.0099
+```
+The optimal shrinkage value when training set MSE (0.1424719) is the smallest is 0.0099.
+
+```{r}
+plot(lambda,train.h.er,type="o",xlab="Lambda (shrinkage)", ylab="Training set MSE",main="Training MSE with different lambda",pch=16,col="red")
+```
+Boosting does not involve bootstrap sampling. The lambda (shrinkage value) usually are 
+between 0.001 ~ 0.01. The higher lambda is, the lower training set MSE. 
+
+```{r}
+lambda=seq(0.001,0.01,by=0.0001)
+i=NULL
+boost.Hitters=rep(NA,length(lambda))
+test.h.er=rep(NA,length(lambda))
+for(i in 1:length(lambda)){
+boost.Hitters=gbm(Salary~.,data=H.test,distribution="gaussian",n.trees=1000,shrinkage=lambda[i])
+predict.t.h=predict(boost.Hitters,newdata=H.test,n.trees=1000)
+test.h.er[i]=mean((predict.t.h-H.test$Salary)^2)
+}
+min(test.h.er) #0.1062192
+lambda[which.min(test.h.er)] #0.0099
+```
+The optimal shrinkage value when test set MSE (0.1062192) is the smallest is 0.0099.
+
+```{r}
+plot(lambda,test.h.er,type="o",xlab="Lambda (shrinkage)", ylab="Test set MSE",main="Test MSE with different lambda",pch=16,col="red")
+```
+Between 0.001 < lambda (shrinkage parameter) < 0.010, test MSE is going to decrese.
+
+```{r}
+library(glmnet)
+```
+
+#####Multiple linear regression
+```{r}
+ml.g=lm(Salary~.,data=H.test)
+pred.g=predict(ml.g,H.test)
+ml.tster=mean((pred.g-H.test$Salary)^2)
+ml.tster #0.2726122
+```
+The test set error MSE using multiple linear regression is approximately 0.273.
+
+#####Ridge regression
+```{r}
+set.seed(10)
+x=model.matrix(Salary~.,Hitters)[,-1]
+y=Hitters$Salary
+grid=10^seq(10,-2,length=100)
+test=-train
+rid.g=glmnet(x[test,],y[test],alpha=0,lambda=grid) #alpha0=ridge
+cv.out0=cv.glmnet(x[test,],y[test],alpha=0)
+bestlam0=cv.out0$lambda.min
+rid.pred.g=predict(rid.g,s=bestlam0,newx=x[test,]) #S?
+mean((rid.pred.g-y[test])^2) #0.3684949
+```
+The test set error MSE using ridge regression is approximately 0.368.
+
+#####Lasso regression
+```{r}
+set.seed(10)
+lasso.g=glmnet(x[test,],y[test],alpha=1,lambda=grid)
+cv.out=cv.glmnet(x[test,],y[test],alpha=1)
+bestlam=cv.out$lambda.min
+lasso.pred.g=predict(lasso.g,s=bestlam,newx=x[test,])
+mean((lasso.pred.g-y[test])^2) #0.3676988
+```
+The test set error MSE using lasso regression is approximately 0.368.
+The smallest test set error MSE is when multiple linear regression tries (0.273).
+
+```{r}
+set.seed(2)
+boost.hitters=gbm(Salary~.,data=H.train,distribution="gaussian",n.trees=1000,shrinkage=lambda)
+summary(boost.hitters)
+```
+The most important predictors are *CAtBat* and *CHits* with over 20 in relative influence. 
+
+```{r}
+set.seed(2)
+bag.hitters=randomForest(Salary~.,data=H.train,mtry=10,importance=TRUE)
+yhat.h.b=predict(bag.hitters,newdata=H.test)
+mean((yhat.h.b-H.test$Salary)^2) #0.2043188
+```
+The test set MSE of bagging is approximately 0.204 and test set MSE of boosting with 
+multiple linear regression is approximately 0.273. In this case, test set MSE of bagging is 
+lower than of boosting.
+
