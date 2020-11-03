@@ -1,0 +1,334 @@
+---
+title: "Classification"
+author: "Sungkyung Kang"
+---
+
+```{r,echo=FALSE,results='hide',warning=FALSE,message=FALSE,cache=FALSE}
+library(MASS) #Models
+library(ISLR) #Weekly data set
+library(class) #knn method
+library(ggplot2)
+library(GGally)
+library(caret)
+library(stats)
+library(lattice)
+```
+
+```{r}
+head(Weekly) 
+#dim(Weekly) #1089, 9
+#table(Weekly$Year) #Check the numbers in each element
+summary(Weekly[,-9]) #For numerical summaries
+```
+The above summary table is summaries of numerical variables except for a categorical variable, *'Direction'*.
+
+```{r}
+cor(Weekly[,-9]) #Only for numerical variables' correlation matrix
+```
+This is correlation matrix and most of variables have negative values except for 
+*Lag1 & Lag3*, *Lag2 & Lag4*, *Year & Volume*, *Lag2 & Today*, and *Lag5 & Today* (positive values).
+
+```{r}
+ggpairs(Weekly[,-9]) #Graphical summaries
+```
+<br>
+The plot eliminating variable *'Direction'* shows totally numerical variables' graphical summaries. 
+
+```{r}
+scat.lag13<-ggplot(Weekly,aes(Lag1,Lag3))
+scat.lag13+geom_point(color="maroon4")
+```
+<br>
+This plot shows there aren't any special patterns with linearity. Most of points are condensing around zero. 
+The correlation between *Lag1* and *Lag3* is 0.05863568 (5.86%).
+
+```{r}
+scat.voly<-ggplot(Weekly,aes(Year,Volume))
+scat.voly+geom_point(color="firebrick2") #Two variables
+```
+<br>
+This plot shows slightly (increasing) quadratic pattern, so that it can be nonlinear (negative) curve. 
+The correlation between *Year* and *Volume* is 0.84194162 (84.19%) with the highest value. 
+
+```{r}
+box.DirL1<-ggplot(Weekly,aes(factor(Direction),Lag1))
+box.DirL1+geom_boxplot(aes(fill=factor(Direction)))
+```
+<br>
+This boxplot shows any graphical relation between *Direction* and *Lag1*. When *Direction* is Down, 
+the median on *Lag1* is a bit over zero (higher than Up) but distribution looks quite symmetric. When *Direction* is Up, the median on *Lag1* is almost zero and distribution looks symmetric likewise down. The maximums of Down and Up are approximately 5 and minimums of them are approximately -5. There are outliers above maximum point and below minimum point. In addition, each quantile (1st, 3rd) on down is all higher than Up.
+
+```{r}
+box.DirV<-ggplot(Weekly,aes(factor(Direction),Volume))
+box.DirV+geom_boxplot(aes(fill=factor(Direction)))
+```
+<br>
+In this box plot, mostly outliers are placed over maximum value. In right panel, when *Direction* is up, 
+the skewness is right (long right tail, positively-skewed distribution) and median is lower than mean. In left panel, when *Direction* is Down, it looks symmetric. (Minimum value isn't seen.)
+
+```{r}
+#attach(Weekly)
+logis<-glm(Direction~Lag1+Lag2+Lag3+Lag4+Lag5+Volume,data=Weekly,family=binomial) #Logistic regression
+summary(logis)
+```
+The model can be; $logit(p_i)$ = $ln(\frac{p_i}{1-p_i})$ = 
+$\beta_0+\beta_1*Lag1+\beta_2*Lag2+\beta_3*Lag3+\beta_4*Lag4+\beta_5*Lag5+\beta_6*Volume+\epsilon_i$
+The smallest p-value is seen on *Lag2* and there is an evidence of a real association between *Lag2* and *Direction*. 
+
+```{r}
+coef(logis)
+```
+From this result, 
+$logit(p_6)$ = $0.26686414-0.04126894*Lag1+0.05844168*Lag2-0.01606114*Lag3-0.02779021*Lag4-0.01447206*Lag5-0.02274153*Volume+\epsilon_i$
+
+```{r}
+glm.prob=predict(logis,type="response") #P(Y=1|X)
+contrasts(Weekly$Direction) #Up=1, Down=0
+glm.pred=rep("Down",1089) #Null+1 & create vector of 1089 Down
+glm.pred[glm.prob>0.5]="Up"
+table(glm.pred,Direction) #Need to be sorted 
+```
+This is comfusion matrix used in prediction analysis. Diagonal elements of this matrix show correct predictions 
+(true positive and true negative) but the rest of elements: off-diagonals show incorrect predictions (false positive and false negative).
+For example it would go up on 557 days and go down on 54 days. So total correct prediction is $557+54$ = $611$ then 
+the rate of correct prediction is $611/1089$ = $0.5610652$ (56.1%). 
+The sensitivity (true positive rate) is $54/(54+430)$ = $0.1115702$ (11.16%). The specificity (true negative rate) 
+is $557/(48+557)$ = $0.9206612$ (92.07%).
+
+```{r}
+mean(glm.pred==Direction) #Test error
+```
+Logistic regression correctly predicted as 56.1%. So $100-56.1$ = $43.9$% is training error rate.  
+
+```{r, eval=FALSE}
+train<-(1990<=Year & Year<=2008) 
+Weekly.19<-Weekly[!train,] #Test set
+dim(Weekly.19) #104, 9
+Direction.19<-Direction[!train]
+```
+The training set is using period from year 1990 to 2008 (19 years). When observation is between those periods, 
+it can be TRUE (otherwise FALSE). 
+
+```{r, eval=FALSE}
+logis1<-glm(Direction~Lag1+Lag2,data=Weekly.19,family=binomial,subset=train)
+summary(logis1)
+logis1.prob<-predict(logis1,Weekly.19,type="response") #P(Y=1|X)
+glm.pred1=rep("Down",104) #Null+1 & create vector of 104 Down
+glm.pred1[logis1.prob>0.5]="Up"
+table(glm.pred1,Direction.19) #Need to be sorted 
+```
+In this table, the ratio of correction predictions is $(8+57)/104$ = $0.625$ (62.5%).
+
+```{r, eval=FALSE}
+mean(glm.pred1==Direction.19) #Test set
+```
+The result is same as the ratio of correction prediction on held-out (test set).
+
+```{r, eval=FALSE}
+mean(glm.pred1!=Direction.19)
+```
+The result is the test set error rate. (37.5%)
+
+```{r, eval=FALSE}
+logis2<-lda(Direction~Lag1+Lag2,data=Weekly,subset=train)
+logis2
+```
+In Linera Discriminant Analysis (LDA), $\hat{\pi_1}$ = $0.4477157$ and $\hat{\pi_2}$ = $0.5522843$ so that 44.77% of 
+training observations correspond to days weekly direction goes down. When $-0.3013148*Lag1+0.2982579*Lag2$ is large, 
+then LDA classifier will predict a *Weekly* increases. 
+
+```{r, eval=FALSE}
+logis2.prob<-predict(logis2,Weekly.19,type="response") #P(Y=1|X)
+glm.pred2=rep("Down",104) #Null+1 & create vector of 104 Down
+glm.pred2[logis2.prob>0.5]="Up"
+table(glm.pred2,Direction.19) #Need to be sorted 
+```
+This result seems strange but first column (Down) means sum of true positive and false negative and second column 
+(Up) means sum of false positive and true negative.
+
+```{r, eval=FALSE}
+lda.class=logis2.prob$class
+table(lda.class,Direction.19)
+mean(lda.class==Direction.19)
+```
+57.69% is correction prediction ratio on test set. (57.69% threshold to the posterior probabilities recreates predictions.)
+
+```{r, eval=FALSE}
+logis3<-qda(Direction~Lag1+Lag2,data=Weekly,subset=train)
+logis3
+```
+In Quadratic Discriminant Anlaysis (QDA), we can see the group means but cannot see any coefficients 
+of linear discriminants because QDA classifier includes quadratic of predictors. 
+
+```{r, eval=FALSE}
+qda.class=predict(logis3,Direction.19)$class
+summary(qda.class)
+table(qda.class[1:104],Direction.19) #Not showing when remove [1:104] owing to different rows or columns' number
+mean(qda.class[1:104]==Direction.19)
+```
+QDA predictions' accuracy is 63.46% (diagonal). Compared to LDA accuracy value, the QDA is higher. Because LDA 
+(57.69%) and logsistic regresison (62.5%)'s accuracy is mostly lower, QDA is recommended to predictions.
+
+```{r, eval=FALSE}
+#library(class)
+#When only Lag1, then cannot try knn
+train.X=cbind(Lag1,Lag2)[train,] #985
+test.X=cbind(Lag1,Lag2)[!train,] #14
+train.Direction=Direction[train]
+set.seed(100) 
+knn.pred<-knn(train.X,test.X,train.Direction,k=1)
+table(knn.pred,Direction.19)
+```
+In this confusion matrix, the correct prediction ratio is $(18+32)/104$ = $0.4807692$ (48.08%). 
+The results using K=1 are not very good, since less than 50% of the observations are correctly predicted. So we would like to try different K values.
+
+In the model using $Lag1 + Lag2$, QDA has higher correct prediction ratio then any other methods.
+
+####LDA
+```{r, eval=FALSE}
+lda1<-lda(Direction~Lag1+Lag2+exp(Lag4)+Lag1:Lag2,data=Weekly,subset=train)
+lda1
+lda.pred1=predict(lda1,Weekly.19)
+lda.class1=lda.pred1$class
+table(lda.class1,Direction.19)
+mean(lda.class1==Direction.19) #57.69%
+```
+
+####QDA
+```{r, eval=FALSE}
+qda1<-qda(Direction~Lag1+Lag2+exp(Lag4)+Lag1:Lag2,data=Weekly,subset=train)
+qda1
+qda.class1=predict(qda1,Weekly.19)$class
+table(qda.class1,Direction.19)
+mean(qda.class1==Direction.19) #57.69%
+```
+In the same model in LDA and QDA, the correct prediction in confusion matrix is similar. 
+
+####KNN when K=3 (Not including interactions and transformation)
+```{r, eval=FALSE}
+train.X1=cbind(Lag1,Lag2,Lag4)[train,]
+test.X1=cbind(Lag1,Lag2,Lag4)[train,]
+set.seed(1001)
+knn.pred1<-knn(train.X1,test.X1,train.Direction,k=3)
+table(knn.pred1[1:104],Direction.19) #985,
+mean(knn.pred1==Direction.19)
+```
+
+```{r, eval=FALSE}
+head(Auto)
+dim(Auto) #392,9
+med.mpg<-median(Auto[,1]) #22.75
+
+mpg01<-NULL
+for(i in 1:392){
+if(Auto[i,1]>=med.mpg){
+  mpg01[i]<-1
+  }
+else{
+  mpg01[i]<-0
+  } 
+}
+new.Auto<-data.frame(Auto,mpg01)
+table(mpg01) #0=196, 1=196
+head(new.Auto)
+```
+
+```{r, eval=FALSE}
+cor(new.Auto[,-9])
+```
+This is correlation matrix among numerical variables (except for *name*). The higest positive correlation is *mpg* 
+and negative high correlations are *cylinders*, *displacement*, and *weight*.
+
+```{r, eval=FALSE}
+summary(new.Auto[,-9])
+scat.mpg<-ggplot(new.Auto,aes(mpg,mpg01))
+scat.mpg+geom_point(color="coral3")
+```
+<br>
+*mpg01* is almost factor devided by median with 0 and 1. So, scatter plot is not helpful to see pattern in *mpg01*.
+
+```{r, eval=FALSE}
+box.mpg<-ggplot(new.Auto,aes(factor(mpg01),mpg))
+box.mpg+geom_boxplot(aes(fill=factor(mpg01)))
+```
+<br>
+This is boxplot between *mpg* and *mpg01*. When *mpg01* is 0, the panel is skewed left (negative). 
+When *mpg01* is 1, the panel is skewed right (positive).
+
+```{r, eval=FALSE}
+box.mpgcy<-ggplot(new.Auto,aes(factor(mpg01),cylinders))
+box.mpgcy+geom_boxplot(aes(fill=factor(mpg01)))
+```
+<br>
+This is boxplot between *mpg01* and *cylinders*. This plot looks strange.
+
+```{r, eval=FALSE}
+box.mpgdis<-ggplot(new.Auto,aes(factor(mpg01),displacement))
+box.mpgdis+geom_boxplot(aes(fill=factor(mpg01)))
+```
+<br>
+This is boxlot between *mpg01* and *displacement*. 
+
+```{r, eval=FALSE}
+box.mpgdwe<-ggplot(new.Auto,aes(factor(mpg01),weight))
+box.mpgdwe+geom_boxplot(aes(fill=factor(mpg01)))
+```
+<br>
+This is boxplot between *mpg01* and *weight*.
+
+```{r, eval=FALSE}
+train1=(new.Auto$mpg<22.5) #train
+new.Auto.test=new.Auto[!train1,]
+dim(new.Auto.test) #197, 10
+mpg01.new=mpg01[!train1] #test
+```
+
+```{r, eval=FALSE}
+#library(MASS)
+lda.fit1=lda(mpg01~mpg+displacement+weight,data=new.Auto,suset=train1)
+lda.fit1
+lda.pred2=predict(lda.fit1,new.Auto.test)
+lda.class2=lda.pred2$class
+table(lda.class2,mpg01.new) #Confusion matrix
+mean(lda.class2==mpg01.new) #0.9796954
+```
+The test error of LDA model is approximately 97.97%.
+
+```{r, eval=FALSE}
+qda.fit2=qda(mpg01~mpg+displacement+weight,data=new.Auto,suset=train1)
+qda.fit2
+qda.class2=predict(qda.fit2,new.Auto.test)$class
+table(qda.class2,mpg01.new)
+mean(qda.class2==mpg01.new) #0.9695431
+```
+The test error of QDA model is approximately 96.95%.
+
+```{r, eval=FALSE}
+glm.fit2=glm(mpg01~mpg+displacement+weight,data=new.Auto,family=binomial)
+summary(glm.fit2)
+glm.pred2=rep(0,191)
+glm.prob2=predict(glm.fit2,type="response")
+glm.pred2[glm.prob2>0.5]=1
+table(glm.pred2[1:197],mpg01.new)
+mean(glm.pred2[1:197]==mpg01.new) #Error (not shown)
+```
+The test error of logistic regression is $(1+68)/197$ = $0.3502538$.
+
+```{r, eval=FALSE}
+train.X2=cbind(new.Auto$mpg,new.Auto$displacement,new.Auto$weight)[train1,]
+test.X2=cbind(new.Auto$mpg,new.Auto$displacement,new.Auto$weight)[!train1,]
+train.mpg01=mpg01[train1]
+set.seed(1001)
+knn.pred2=knn(train.X2,test.X2,train.mpg01,k=1)
+table(knn.pred2[1:197],mpg01.new) #Not shown 2 columns => cannot calculate error
+```
+
+```{r, eval=FALSE}
+knn.pred3=knn(train.X2,test.X2,train.mpg01,k=2)
+table(knn.pred3[1:197],mpg01.new)
+```
+
+```{r, eval=FALSE}
+knn.pred4=knn(train.X2,test.X2,train.mpg01,k=3)
+table(knn.pred4[1:197],mpg01.new)
+```
