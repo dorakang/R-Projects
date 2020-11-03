@@ -1,0 +1,226 @@
+---
+title: 'Unsupervised learning'
+author: "Sungkyung Kang"
+---
+
+```{r}
+library(base)
+data(USArrests)
+```
+
+```{r}
+#head(USArrests)
+#dim(USArrests) 50 4
+pr.out.USA=prcomp(USArrests,scale=TRUE) #Recommended Scale
+#summary(USArrests)
+```
+
+```{r}
+biplot(pr.out.USA,scale=0)
+```
+<br>
+This plot shows first two principal components. 
+
+```{r}
+pr.out.USA$rotation=-pr.out.USA$rotation
+pr.out.USA$x=-pr.out.USA$x
+biplot(pr.out.USA,scale=0)
+```
+<br>
+This plot is the same as upper plot but a mirror image with showing 
+different directions of four variables.
+
+```{r}
+pr.var.USA=pr.out.USA$sdev^2
+pve.USA=pr.var.USA/sum(pr.var.USA)
+pve.USA #0.62006039 0.24744129 0.08914080 0.04335752
+```
+With the variances of each principal components, PVE can be calculated. 
+The first principal component explains 62.0% of the variance in the data, 
+the second principal component explains 24.7% of the variance and so on. (Proportion of Variance Explained)
+
+```{r}
+par(mfrow=c(1,2))
+plot(pve.USA,xlab="Principal component",ylab="Variance explained",ylim=c(0,1),type="o",main="PC with variance in USArrests",col="red",pch=16)
+plot(cumsum(pve.USA),xlab="Principal component",ylab="Cumulative proportion of variance explained",ylim=c(0,1),type="o",pch=16,col="red",main="PC with cumulative proportion variance in USArrests")
+```
+<br>
+The larger principal component is, the lower variance is.
+
+```{r}
+dev.off()
+```
+
+```{r}
+pi.loading<-pr.out.USA$rotation
+scale.USA=scale(USArrests,scale=TRUE) #Scale, center
+denom.USA=sum(apply(as.matrix(scale.USA)^2,2,sum)) #col=2 
+nom.USA=apply((as.matrix(scale.USA)%*%pi.loading)^2,2,sum) #(Order?)
+#nom.USA1=sum((apply(as.matrix(scale.USA)%*%pi.loading,2,sum))^2) #Not working
+nom.USA/denom.USA #0.62006039 0.24744129 0.08914080 0.04335752 
+```
+*scale()* funciton is to be centered or scale of variables matrix.
+The two results (a, b) are same. 
+
+```{r}
+hc.complete=hclust(dist(USArrests,method="euclidean"),method="complete")
+plot(hc.complete,main="Complete linkage of USArrests dendrogram")
+```
+<br>
+The denderogram looks to be balanced well.
+
+```{r}
+height.3=cutree(hc.complete,3)
+height.3
+```
+For example, *'Alabama'* instance belongs to class 1, 
+*'Colorado'* instance belongs to class 2 and *Connecticut* instance belongs to class 3.
+
+```{r}
+scale.USA=scale(USArrests)
+plot(hclust(dist(scale.USA,method="euclidean"),method="complete"),main="Hierarchical clustering with scale")
+```
+<br>
+The denderogram looks to be balanced well.
+
+```{r}
+par(mfrow=c(1,2))
+plot(hc.complete,main="Complete linkage (non-scale)")
+plot(hclust(dist(scale.USA,method="euclidean"),method="complete"),main="Complete linkage (scale)")
+```
+<br>
+Left panel is non-scale of complete linkage and right panel is scale of comlete linkage. 
+For cutting (making clusters), sclae is better to do. <br>
+With scaling, the height is adjusted.
+
+```{r}
+dev.off()
+```
+
+```{r}
+table(cutree(hc.complete,3)) #non-scale
+table(cutree(hclust(dist(scale.USA,method="euclidean"),method="complete"),3)) #scale
+```
+In this table, for the number of three clusters, each cluster with non-scale has 
+similar instances rather than with scale. 
+
+```{r}
+set.seed(2)
+class=c(rep(1,20),rep(2,20),rep(3,20))
+ds=matrix(rnorm(20*3*50),ncol=50)
+ds[class==1,]=ds[class==1,]
+ds[class==2,]=ds[class==2,]-5
+ds[class==3,]=ds[class==3,]+5
+par(mfrow=c(1,1))
+plot(ds[,1:2],col=(4-class),pch=16,xlab="",ylab="",main="3 classes")
+```
+
+```{r}
+pr.out.ds=prcomp(ds)
+#Not working a) to b) so have to change simulation here
+plot(pr.out.ds$ds[,1:2],col=(4-class),pch=16,xlim=c(-4,4),ylim=c(-4,4),xlab="P1",ylab="P2")
+```
+
+```{r}
+k3=kmeans(ds,3,nstart=30) #3 clusters, default
+table(class,k3$cluster)
+```
+If the components showed only diagnomal like (1,1), it is perfectly done for clustering. 
+In this table, observations are clustered well.
+
+```{r}
+k2=kmeans(ds,2,nstart=30) #2 clusters
+table(class,k2$cluster)
+```
+One cluster is merged to other clusters and total classes are three.
+
+```{r}
+k4=kmeans(ds,4,nstart=30) #4 clusters
+table(class,k4$cluster)
+```
+One more cluster is formed.
+
+```{r} 
+k3.out=kmeans(pr.out.ds$ds[,1:2],3,nstart=30) ###QN) pr.out.ds$ds[,1:2] is NULL?! #NULL #Not working
+table(class,k3.out$cluster) #Not working
+table(class,k3$cluster)
+```
+pr.out.ds$ds[,1:2] is not shown so PCA is not known as the result.
+
+```{r}
+k3scale=kmeans(scale(ds),3,nstart=30)
+table(class,k3scale$cluster) #scale 
+table(class,k3$cluster) #non-scale
+```
+In table comparison, non-scale is better than scale (shape of diagonal).
+
+```{r}
+summary(gene)  
+head(gene)  
+dim(gene) #1000 40
+```
+
+#####Complete method
+```{r}
+cd=as.dist(1-cor(gene))
+hc.complete.gene=hclust((cd),method="complete")
+plot(hc.complete.gene)
+rect.hclust(hc.complete.gene,k=2)
+```
+<br>
+With 40 variables, a hierarchical clustering dendrogram used method *complete* is. 
+In this dendrogram, there are two distinct groups when a threshold is nearly 1.1. 
+The number of groups making clusters are depended on position of threshold. 
+
+#####Average method
+```{r}
+hc.average.gene=hclust((cd),method="average")
+plot(hc.average.gene)
+rect.hclust(hc.average.gene,k=2)
+```
+<br>
+For making two groups, the threshold should be at height 1. However the shape of this 
+dendrogram seems to be not balanced. 
+
+#####Single method
+```{r}
+hc.single.gene=hclust((cd),method="single")
+plot(hc.single.gene)
+rect.hclust(hc.single.gene,k=2)
+```
+<br>
+The shape of this dendrogram seems to be not balanced and not good. 
+#####Ward.D method
+```{r}
+hc.wardD.gene=hclust((cd),method="ward.D")
+plot(hc.wardD.gene)
+rect.hclust(hc.single.gene,k=2)
+```
+<br>
+The shape of this dendrogram seems to be not balanced. 
+
+#####Single method
+```{r}
+hc.med.gene=hclust((cd),method="median")
+plot(hc.med.gene)
+rect.hclust(hc.single.gene,k=2)
+```
+<br>
+The shape of this dendrogram seems to be not balanced and not good. 
+#####Centroid method
+```{r}
+#hc.cent.gene=hclust((cd),method="centroid")
+#plot(hc.cent.gene)
+#rect.hclust(hc.centroid.gene,k=2)
+```
+The shape seems to be worse.
+
+#####Among those methods, 'complete' method looks great on this dataset.
+
+```{r}
+pr.out.gene=prcomp(t(gene)) #Transpose, 100obs, 40variable
+loading=apply(pr.out.gene$rotation,1,sum) #Check
+label=order(abs(loading),decreasing=TRUE) #Check
+head(label)
+loading[label[1:20]]
+```
