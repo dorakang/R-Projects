@@ -1,0 +1,206 @@
+---
+title: 'Mixed Linear Model'
+author: "Sungkyung Kang"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###Install & load packages
+```{r,warning=FALSE,message=FALSE}
+library(ggplot2)
+library(lme4)
+library(lmerTest)
+library(lsmeans)
+library(nlme)
+library(MuMIn)
+library(dplyr)
+library(multcomp)
+library(arm)
+library(xtable)
+library(plyr)
+```
+Encoding: UTF-8
+
+```{r}
+rats$treatm <- factor(rats$treatm)
+rats$cage <- factor(rats$cage)
+rats$month <- factor(rats$month)
+```
+In the variance structure two observations from different cages are uncorrelated; 
+two observations from the same cage are positively correlated. 
+
+```{r}
+mod0 <- lmerTest::lmer(lnc~month+treatm+month:treatm+(1|cage),data=rats)
+arm::display(mod0) #summary(mod0)
+```
+`mod0` is a linear mixed model with an assumption of an (random) intercept is different for each **cage**. 
+It coincides with the above formula. `(1|cage)` means `lmer` fits a linear model with a varying intercept group effect using the variable **cage**. `display` is a brief version of `summary`. From `mod0` I have tried to vary a slope in a model like `(1+treatm|cage)` or `(1+month|cage)`. These were in trouble due to scale problems. 
+
+```{r}
+mod1 <- lmerTest::lmer(lnc~month+treatm+month:treatm+(1|cage)+(1|month),data=rats)
+arm::display(mod1)
+```
+When `mod0` is included a random effect `(1|treatm)` instead of `(1|month)`, it had an error. 
+The model, `mod1` is to vary intercepts with two random effects **cage** and **month**.
+
+```{r}
+anova(mod0,mod1,refit=F) #mod0
+```
+
+```{r,results='asis'}
+print(xtable(anova(mod0)),type="html")
+```
+The two models have same fixed effects but different random effects. 
+In this case, if the models are fit by restricted maximum likelihood (REML) a likelihood ratio test is appropriate. 
+The option `refit=F` is added in ANOVA. Of these two models, `mod0` is better than `mod1`. 
+
+```{r}
+mod2 <- nlme::gls(lnc~month+treatm+month:treatm,correlation=corCompSymm(form=~1|cage),data=rats)
+mod2
+intervals(mod2)
+```
+For specifying the correlation, `corCompSymm` is used as an option to `gls` function. `mod2` structure is same as `mod0` 
+which is selected as a good model. 
+
+###b.
+Determine if change in activity over time depends on treatment.
+What is the estimated change in activity per month for each treatment?
+```{r}
+mod3 <- lmerTest::lmer(lnc~month*treatm+(1|treatm/month),data=rats)
+mod3
+```
+
+```{r,results='asis',warning=FALSE}
+print(xtable(anova(mod3)),type="html")
+```
+`mod3` is assumed to use the nested data which **month** is nested by **treatm**. `(1|treatm/month)` 
+means a mixed effect term for varying intercepts 1|by **treatm** and each **month** is nested within **treatm**. 
+In this model the estimated change is the terms, **month** (9 dummies), **treatm** (2 dummies) and **month:treatm** (18 dummies).
+
+```{r,results='asis',warning=FALSE}
+print(xtable(anova(mod3)),type="html")
+```
+
+##Q2.Oats data
+```{r}
+Oats$nitro <- factor(Oats$nitro)
+```
+
+```{r}
+ggplot(Oats,aes(x=yield,y=nitro,group=Variety))+
+      geom_line(aes(col=Block))+
+      facet_grid(Variety~Block,scales="free")+
+      labs(title="The Split Plot of Oats")+
+      guides(col=F)
+```
+<br><br>
+The range of **yield** (x-axis) is depended on the levels of **Variety** and **Block**. 
+
+```{r}
+ggplot(Oats,aes(x=nitro,y=yield,group=Block))+
+      geom_bar(stat="identity",aes(fill=Variety))+
+      facet_grid(Block~Variety,scales="free")+
+      labs(title="The Split Plot of Oats")
+```
+<br><br>
+Total of 18 subplots (6 levels of **Block** and 3 levels of **Variety**) are in the split plot. 
+
+```{r}
+ggplot(Oats,aes(x=Block,y=yield,group=Variety))+
+      geom_line(stat="identity",aes(col=nitro))+
+      facet_grid(nitro~Variety,scales="free")+
+      labs(title="The Split Plot of Oats")+
+      guides(col=F)
+```
+
+```{r}
+mod0.1=lmer(log(yield)~nitro+Variety+nitro:Variety+(1|Block),data=Oats)
+arm::display(mod0.1)
+```
+`mod0.1` has fixed effects of `nitro*Variety`. This model has a random effect of specified with `(1|Block)` 
+and is varied by an intercept of **Block**. 
+
+```{r}
+mod1.1=lmer(log(yield)~nitro+Variety+nitro:Variety+(1|Block/Variety),data=Oats)
+#arm::display(mod1.1)
+summary(mod1.1)
+```
+`mod1.1` is in a case of nested data which is **Variety** belongs to **Block**. 
+
+```{r}
+anova(mod0.1,mod1.1,refit=F) #mod1.1
+```
+From ANOVA, `mod1.1` is better than `mod0.1`. 
+
+```{r,results='asis',warning=FALSE}
+print(xtable(anova(mod1.1)),type="html")
+```
+
+```{r}
+ggplot(Oats,aes(x=nitro,y=log(yield),group=Variety))+
+      geom_point(col="indianred2")+
+      facet_grid(.~Variety,scales="free")+
+      labs(title="The Relation Between log(Yield) and Nitro Depend on Variety")
+```
+<br><br>
+In the scatter plot, it is hard to clearly see the relation between log(yield) and nitrogen level. 
+
+```{r,warning=FALSE}
+ggplot(Oats,aes(x=nitro,y=log(yield),group=Variety))+
+      stat_smooth(stat="identity",fill="indianred2",method="loess")+
+      facet_grid(.~Variety,scales="free")+
+      labs(title="The Relation Between log(Yield) and Nitro Depend on Variety")
+```
+<br><br>
+The observations in the data is less than 1000 so the method is `loess`. 
+I wouldn't say these two variables (log(**yield**) and **nitro**) have a linear relation. 
+If I have to say any relation of them, I might say they have quadratic relations.
+
+No. I couldn't say log(yield) increases linearly with nitrogen level. Each level of **Variety** has different trends of them. 
+
+```{r}
+ggplot(Oats,aes(x=yield,y=nitro,group=Variety))+
+      geom_line(aes(col=Variety))+
+      facet_grid(~Block,scales="free")+
+      labs(title="The Split Plot of Oats")
+```
+<br><br>
+From the model `mod1.1`, the random effect is varied by **Block** and **Variety**:
+```{r}
+tapply(Oats$yield,list(Oats$Block,Oats$Variety),var)
+```
+
+```{r}
+ddply(Oats,.(Block,Variety),summarise,var=var(yield))
+```
+`tapply` and `ddply` results are same. The observations are correlated according to the variance structure; 
+correlation of random effect for the same **Variety** and **Block**. 
+
+```{r,warning=FALSE}
+tuk1 <- multcomp::glht(mod1.1,linfct=mcp(nitro="Tukey"))
+summary(tuk1)
+```
+This shows the contrast of each nitrogen level.
+
+```{r}
+tuk.cld=cld(tuk1)
+old.par=par(mai=c(1,1,1.25,1),no.readonly=TRUE) #where is alphabet?
+plot(tuk.cld,col=2:5)
+```
+<br><br>
+In the post hoc analysis with Tukey method for multiple comparisons, it shows what levels are in significant 
+relationship of the differences on levels of **nitro**. In the plot the letters *b* and *c* are sharing and it 
+means these are not significant. The letter, *a*, however, is significant among other letters. 
+The level *Golden Rain* in **Variety** is significant then gives the greatest log(yield) after adjusting for nitrogen level.
+
+###g.
+Interpret the regression parameter for nitrogen level.
+<br>
+From above result (f), by each nitrogen level we know which level of **Variety** variable is significant. The level *Golden Rain* in **Variety** is statistically significant among other levels. When the nitro level is 0.2 and the variety level is golden rain, this term is significant. 
+
+```{r,results='asis',warning=FALSE}
+print(xtable(confint(mod1.1,1:3)),type="html")
+```
+It is the confidence limits of the standard deviations in the model.
